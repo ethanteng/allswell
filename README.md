@@ -95,6 +95,13 @@ real lines from it, and every screen showing that output labels it a placeholder
 That keeps local development and a misconfigured deploy usable rather than
 broken.
 
+Use a **workspace-scoped** key. An organisation-level key has no workspace of
+its own, so the API rejects every request made with one unless it names a
+workspace — set `ANTHROPIC_WORKSPACE_ID` alongside it if that is the key you
+have. Scoping to a workspace is the better arrangement regardless: spend limits
+and key revocation land on this app rather than on everything the organisation
+runs.
+
 With a key, three things shape the call.
 
 **The model only writes judgement.** The schema it fills in
