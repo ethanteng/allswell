@@ -215,7 +215,19 @@ Set one environment variable:
 - `NEXT_PUBLIC_API_URL` — your Render service URL, e.g.
   `https://allswell-api.onrender.com`, no trailing slash.
 
-It's baked in at build time, so changing it needs a redeploy.
+It's baked in at build time, so changing it needs a redeploy. Adding or editing
+the variable does **not** rebuild anything on its own — the previously built
+bundle keeps the old value until a new deploy runs, which looks exactly like the
+variable not having been saved.
+
+**Watch for a second, unwanted project.** Vercel's monorepo detection scans the
+repository and offers a project per buildable directory, so importing this repo
+can create an `allswell-backend` alongside the frontend one. That project builds
+`backend/`, which belongs on Render: it has none of the API's environment
+variables and no serverless adapter, so it cannot work, and it reports its own
+status on every pull request — green while it silently does nothing, red once
+paused. Delete it rather than pausing it; a paused project keeps failing every
+PR. Only the project whose root directory is `frontend` should exist here.
 
 ### A note on CORS and preview deployments
 
