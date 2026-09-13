@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Prisma, SessionStatus, TurnKind } from '@prisma/client';
 import { AnalysisService } from '../analysis/analysis.service';
 import type { SessionFeedback } from '../analysis/feedback.types';
@@ -209,7 +215,25 @@ export class SessionsService {
     }
 
     const priorFeedback = (analysisTurn.feedback as unknown as SessionFeedback | null) ?? null;
-    const result = await this.analysis.followUp(dto.question.trim(), session.transcript, priorFeedback);
+
+    /*
+     * The analysis path records a failure on the session and the UI reads it
+     * from there. A follow-up has nothing to record it on — there is no turn
+     * until the answer exists — so the message has to travel as the response.
+     *
+     * Letting the error escape gives Nest's default filter a plain `Error`,
+     * which it reports as `500 Internal server error`. That throws away every
+     * message this feature is careful about: what a refusal was, that the
+     * credentials are misconfigured, that the transcript is still saved.
+     */
+    let result: Awaited<ReturnType<AnalysisService['followUp']>>;
+    try {
+      result = await this.analysis.followUp(dto.question.trim(), session.transcript, priorFeedback);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The follow-up could not be answered';
+      this.logger.error(`Follow-up failed for session ${session.id}: ${message}`);
+      throw new ServiceUnavailableException(message);
+    }
 
     await this.prisma.turn.create({
       data: {
