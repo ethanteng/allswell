@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { SessionSummary } from '@/lib/types';
 import { fromDateInputValue, toDateInputValue } from '@/lib/format';
 import { Modal } from './ui/Modal';
 
 interface EditSessionDialogProps {
   open: boolean;
-  session: Pick<SessionSummary, 'title' | 'sessionDate'> | null;
+  session: Pick<SessionSummary, 'id' | 'title' | 'sessionDate'> | null;
   onClose: () => void;
   onSubmit: (changes: { title: string; sessionDate: string | null }) => void;
 }
@@ -17,13 +17,29 @@ export function EditSessionDialog({ open, session, onClose, onSubmit }: EditSess
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
 
-  // The dialog stays mounted between uses, so reset when it reopens — otherwise
-  // it shows whichever session was edited last.
+  // Read through a ref so the reset below can depend on the session's identity
+  // rather than on the object, which is replaced wholesale on every refresh.
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const sessionId = session?.id ?? null;
+
+  /**
+   * Seed the fields when the dialog opens, or when it is pointed at a different
+   * session while open.
+   *
+   * Deliberately not keyed on the session object: anything that reloads the
+   * open session — an analysis or follow-up finishing, a re-run — replaces it
+   * with a new object holding identical title and date, and resetting on that
+   * would wipe whatever the clinician had typed. Those requests can be in
+   * flight while this dialog is open, so it is reachable, and the failure is
+   * silent: the draft is simply gone.
+   */
   useEffect(() => {
     if (!open) return;
-    setTitle(session?.title ?? '');
-    setDate(toDateInputValue(session?.sessionDate ?? null));
-  }, [open, session]);
+    const current = sessionRef.current;
+    setTitle(current?.title ?? '');
+    setDate(toDateInputValue(current?.sessionDate ?? null));
+  }, [open, sessionId]);
 
   const trimmed = title.trim();
 
