@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // The root tsconfig also covers prisma/ so `tsc --noEmit` and ts-node
+    // type-check the seed. That widens the inferred rootDir to the package root,
+    // which emits the entry point at dist/src/main.js instead of dist/main.js.
+    // The application build pins rootDir to src so the emitted layout matches
+    // what `start` and `start:render` run.
+    "rootDir": "./src",
+    // Kept inside dist so deleting the output directory also drops the
+    // incremental state. Left outside, a stale .tsbuildinfo makes the next build
+    // a silent no-op and ships whatever dist happened to contain.
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "prisma", "**/*.spec.ts"]
+}
