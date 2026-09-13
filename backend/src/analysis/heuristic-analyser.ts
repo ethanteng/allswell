@@ -1,4 +1,4 @@
-import type { FeedbackItem, FeedbackMoment, SessionFeedback } from './feedback.types';
+import type { FeedbackItem, FeedbackMoment, FeedbackStats, SessionFeedback } from './feedback.types';
 import { excerpt, isClient, isTherapist, parseTranscript, type Utterance } from './transcript';
 
 /**
@@ -230,6 +230,32 @@ function wordCount(utterances: Utterance[]): number {
 }
 
 /**
+ * Session counts, derived from the transcript.
+ *
+ * Exported because the model-backed path uses it too: turn counts, question
+ * counts and talk share are exactly computable, so they are computed rather
+ * than asked for. A model's plausible-looking wrong number sitting beside real
+ * clinical observations makes the observations look wrong too.
+ */
+export function computeStats(transcript: string): FeedbackStats {
+  const utterances = parseTranscript(transcript);
+  const therapistLines = utterances.filter(isTherapist);
+  const clientLines = utterances.filter(isClient);
+
+  const therapistWords = wordCount(therapistLines);
+  const clientWords = wordCount(clientLines);
+  const totalWords = therapistWords + clientWords;
+
+  return {
+    durationLabel: durationLabel(utterances),
+    therapistTurns: therapistLines.length,
+    clientTurns: clientLines.length,
+    therapistQuestions: therapistLines.filter((line) => line.text.includes('?')).length,
+    therapistTalkSharePct: totalWords > 0 ? Math.round((therapistWords / totalWords) * 100) : null,
+  };
+}
+
+/**
  * Produces structured feedback for a transcript. Pure and synchronous — no
  * network — so it is safe to call inline on the request path.
  */
@@ -238,12 +264,9 @@ export function analyseTranscript(transcript: string): SessionFeedback {
   const therapistLines = utterances.filter(isTherapist);
   const clientLines = utterances.filter(isClient);
 
-  const therapistWords = wordCount(therapistLines);
-  const clientWords = wordCount(clientLines);
-  const totalWords = therapistWords + clientWords;
-  const talkShare = totalWords > 0 ? Math.round((therapistWords / totalWords) * 100) : null;
-
-  const therapistQuestions = therapistLines.filter((line) => line.text.includes('?')).length;
+  const stats = computeStats(transcript);
+  const talkShare = stats.therapistTalkSharePct;
+  const therapistQuestions = stats.therapistQuestions;
 
   const strengths = runDetectors(STRENGTH_DETECTORS, therapistLines, 5);
   const growthAreas = runDetectors(GROWTH_DETECTORS, therapistLines, 4);
@@ -267,13 +290,7 @@ export function analyseTranscript(transcript: string): SessionFeedback {
   return {
     headline,
     summary,
-    stats: {
-      durationLabel: durationLabel(utterances),
-      therapistTurns: therapistLines.length,
-      clientTurns: clientLines.length,
-      therapistQuestions,
-      therapistTalkSharePct: talkShare,
-    },
+    stats,
     strengths,
     growthAreas,
     themes: detectThemes(utterances),

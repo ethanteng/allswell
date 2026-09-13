@@ -15,21 +15,21 @@ export interface ModelOption {
 
 export const MODEL_CATALOG: ModelOption[] = [
   {
-    id: 'claude-opus-5',
-    label: 'Claude Opus 5',
-    note: 'Strongest reasoning. Best default for clinical nuance.',
+    id: 'claude-sonnet-5',
+    label: 'Claude Sonnet 5',
+    note: 'The default. Strong clinical reasoning at a fraction of Opus pricing.',
     recommended: true,
   },
   {
-    id: 'claude-sonnet-5',
-    label: 'Claude Sonnet 5',
-    note: 'Noticeably cheaper, still strong. Good for iterating on prompts.',
+    id: 'claude-opus-5',
+    label: 'Claude Opus 5',
+    note: 'Strongest reasoning. Worth comparing against on subtle sessions.',
     recommended: true,
   },
   {
     id: 'claude-haiku-4-5',
     label: 'Claude Haiku 4.5',
-    note: 'Fastest and cheapest. 200K context, so very long transcripts may not fit.',
+    note: 'Fastest and cheapest. 200K context, so very long transcripts may not fit. Older generation: it takes the temperature setting, and ignores thinking effort.',
     recommended: false,
   },
   {
@@ -40,7 +40,7 @@ export const MODEL_CATALOG: ModelOption[] = [
   },
 ];
 
-export const DEFAULT_MODEL = 'claude-opus-5';
+export const DEFAULT_MODEL = 'claude-sonnet-5';
 
 export function isKnownModel(id: string): boolean {
   return MODEL_CATALOG.some((option) => option.id === id);

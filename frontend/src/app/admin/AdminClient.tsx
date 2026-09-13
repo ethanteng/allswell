@@ -109,11 +109,6 @@ export function AdminClient() {
         </p>
       </header>
 
-      <p className="mb-7 rounded-xl border border-clay-100 bg-clay-50 px-4 py-3.5 text-sm leading-6 text-clay-700">
-        The model call isn&apos;t wired up yet. These values are stored and stamped onto every analysis, but feedback
-        content currently comes from the placeholder analyser.
-      </p>
-
       <form onSubmit={handleSave} className="space-y-7">
         <section className="card p-6">
           <h2 className="mb-4 text-lg font-semibold tracking-[-0.02em]">Model</h2>
@@ -165,7 +160,10 @@ export function AdminClient() {
                 value={draft.temperature}
                 onChange={(event) => setDraft({ ...draft, temperature: Number(event.target.value) })}
               />
-              <p className="mt-1.5 text-xs text-ink-faint">Lower is more consistent between runs.</p>
+              <p className="mt-1.5 text-xs text-ink-faint">
+                Only sent to models that accept sampling. Claude 4.6 and newer reject it, so it is omitted for
+                those and this value has no effect.
+              </p>
             </div>
 
             <div>
