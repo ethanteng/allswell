@@ -29,7 +29,7 @@ import { MoveSessionDialog } from './MoveSessionDialog';
 type PendingRename = { kind: 'client'; id: string; current: string };
 type PendingDelete = { kind: 'client' | 'session'; id: string; name: string; sessionCount: number };
 
-/** Status dot on a session row. Only non-complete states earn a colour. */
+/** Status dot on a session row. Only non-complete states earn a color. */
 function StatusDot({ status }: { status: SessionSummary['status'] }) {
   if (status === 'COMPLETE') return null;
 
@@ -408,7 +408,7 @@ export function Sidebar({ user, onSignOut, onClose }: { user: AuthUser | null; o
       <RenameDialog
         open={rename !== null}
         title="Rename client"
-        description="Use the name you would recognise this person by."
+        description="Use the name you would recognize this person by."
         label="Client name"
         initialValue={rename?.current ?? ''}
         onClose={() => setRename(null)}

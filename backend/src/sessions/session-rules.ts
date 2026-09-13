@@ -8,7 +8,7 @@
  *
  * The edit dialog submits the title and the date together, so a clinician who
  * only changed the date still sends the title they never touched. Treating
- * that as a rename would silently take the session out of the analyser's hands
+ * that as a rename would silently take the session out of the analyzer's hands
  * for good — setting a date is a common action, and it would quietly stop the
  * model from ever naming that session again.
  *

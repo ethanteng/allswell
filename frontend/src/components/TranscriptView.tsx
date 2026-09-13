@@ -35,8 +35,8 @@ function parse(transcript: string): ParsedLine[] {
 
 function isClinician(speaker: string | null): boolean {
   if (!speaker) return false;
-  const normalised = speaker.toLowerCase();
-  return normalised.startsWith('therapist') || normalised.startsWith('clinician') || normalised.startsWith('counselor');
+  const normalized = speaker.toLowerCase();
+  return normalized.startsWith('therapist') || normalized.startsWith('clinician') || normalized.startsWith('counselor');
 }
 
 export function TranscriptView({ transcript, highlight }: { transcript: string; highlight: string | null }) {

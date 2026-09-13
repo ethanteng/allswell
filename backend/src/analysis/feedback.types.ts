@@ -2,7 +2,7 @@
  * Shape of the structured feedback stored on an ANALYSIS turn.
  *
  * Kept in one place because it is the contract between three things: the
- * analyser that produces it, the `Turn.feedback` JSON column, and the frontend
+ * analyzer that produces it, the `Turn.feedback` JSON column, and the frontend
  * response pane. When the real model call replaces the stub, it should be
  * constrained to emit exactly this.
  */
@@ -33,15 +33,24 @@ export interface FeedbackStats {
 }
 
 export interface SessionFeedback {
-  /** One-line characterisation of the session. */
+  /** One-line characterization of the session. */
   headline: string;
   /** Short paragraph a supervisor would open with. */
   summary: string;
   stats: FeedbackStats;
   strengths: FeedbackItem[];
   growthAreas: FeedbackItem[];
-  /** Clinical themes present, for orientation rather than judgement. */
+  /** Clinical themes present, for orientation rather than judgment. */
   themes: string[];
+  /**
+   * Openers for the follow-up thread, written against this session.
+   *
+   * Optional because it is not in feedback stored before this field existed,
+   * and because the heuristic analyzer has no business inventing questions
+   * about a transcript it only pattern-matched. The UI falls back to generic
+   * prompts when it is missing.
+   */
+  suggestedQuestions?: string[];
   /** Distinguishes stub output from real model output in the UI. */
   generatedBy: 'heuristic-stub' | 'llm';
 }

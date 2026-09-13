@@ -7,17 +7,30 @@ import remarkGfm from 'remark-gfm';
 import { useWorkspace } from '@/store/workspace';
 import type { Turn } from '@/lib/types';
 
-const SUGGESTED_QUESTIONS = [
-  'Where did I miss an opportunity to stay with the feeling?',
-  'How did I handle the rupture, and what would have been better?',
-  'Was the pacing right in the second half?',
+/**
+ * Used when the analysis carried no questions of its own — heuristic output, or
+ * feedback stored before the model was asked for them.
+ *
+ * Deliberately blander than what the model writes. The set these replaced
+ * assumed facts about the session: "how did I handle the rupture" reads as an
+ * accusation when there wasn't one, and "the second half" is meaningless for a
+ * twelve-minute transcript. A generic question is a weaker prompt; a confidently
+ * wrong one is a worse product.
+ */
+const FALLBACK_QUESTIONS = [
+  'What would you do differently in the next session?',
+  'Where was the strongest moment, and why?',
+  'What did I miss?',
 ];
 
-export function FollowUpThread({ turns }: { turns: Turn[] }) {
+export function FollowUpThread({ turns, suggestions }: { turns: Turn[]; suggestions?: string[] }) {
   const { askFollowUp, working } = useWorkspace();
   const [question, setQuestion] = useState('');
 
   const followUps = turns.filter((turn) => turn.kind === 'FOLLOW_UP');
+  // An empty array is as good as absent — the model returning none should not
+  // leave the thread with no way in.
+  const prompts = suggestions?.length ? suggestions : FALLBACK_QUESTIONS;
 
   async function submit(text: string) {
     const trimmed = text.trim();
@@ -47,7 +60,7 @@ export function FollowUpThread({ turns }: { turns: Turn[] }) {
 
       {followUps.length === 0 && (
         <div className="flex flex-wrap gap-2">
-          {SUGGESTED_QUESTIONS.map((suggestion) => (
+          {prompts.map((suggestion) => (
             <button
               key={suggestion}
               type="button"

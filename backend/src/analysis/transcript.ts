@@ -1,4 +1,4 @@
-/** Parsing helpers shared by the analyser and the session title generator. */
+/** Parsing helpers shared by the analyzer and the session title generator. */
 
 export interface Utterance {
   /** Raw label such as "12:34", or null when the line carried no timestamp. */

@@ -61,7 +61,7 @@ export class SessionsService {
    *
    * A successful analysis replaces this with a title the model wrote, which
    * reads better. This still runs first and stays the name of any session the
-   * model never got to: one analysed without an API key, and — the case that
+   * model never got to: one analyzed without an API key, and — the case that
    * matters — one whose analysis failed. "Untitled session" at the moment a
    * clinician is looking for the session to retry would be the worst time for
    * it.
@@ -172,7 +172,7 @@ export class SessionsService {
     });
 
     try {
-      const result = await this.analysis.analyse(session.transcript);
+      const result = await this.analysis.analyze(session.transcript);
 
       /*
        * A rename is a deliberate act; a re-run (after an admin changes the
@@ -283,7 +283,7 @@ export class SessionsService {
     return this.prisma.session.update({
       where: { id: sessionId },
       data: {
-        // Naming it by hand takes the title out of the analyser's hands for
+        // Naming it by hand takes the title out of the analyzer's hands for
         // good — but only an actual rename counts, since the edit dialog
         // resubmits the unchanged title alongside a date the clinician did
         // change.

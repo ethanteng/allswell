@@ -54,7 +54,7 @@ export const LlmFeedbackSchema = z.object({
         'sessions — e.g. "Boundary-setting with parents". A few words, not a sentence, and ' +
         'not a line lifted from the transcript.',
     ),
-  headline: z.string().describe('One line characterising the session.'),
+  headline: z.string().describe('One line characterizing the session.'),
   summary: z
     .string()
     .describe('Short paragraph a supervisor would open with, addressed to the clinician.'),
@@ -62,7 +62,26 @@ export const LlmFeedbackSchema = z.object({
   growthAreas: z.array(GrowthSchema),
   themes: z
     .array(z.string())
-    .describe('Clinical themes present, for orientation rather than judgement.'),
+    .describe('Clinical themes present, for orientation rather than judgment.'),
+  suggestedQuestions: z
+    .array(
+      z.object({
+        question: z
+          .string()
+          .describe(
+            'A short question this clinician might want to ask you about this session, written ' +
+              'in their voice ("Where did I…", "Should I have…"). Answerable from this ' +
+              'transcript and pointing at something specific that happened in it, not a generic ' +
+              'supervision prompt. No timestamp in the text itself.',
+          ),
+        anchor: MomentSchema.describe(
+          'The moment in the transcript this question is about. Not shown to the clinician — it ' +
+            'is what the question is checked against, so a question whose anchor names no real ' +
+            'line is discarded rather than displayed.',
+        ),
+      }),
+    )
+    .describe('Exactly three, each anchored to a different moment.'),
 });
 
 export type LlmFeedback = z.infer<typeof LlmFeedbackSchema>;

@@ -129,11 +129,13 @@ export function SessionView({ session }: { session: SessionDetail }) {
             <FeedbackPanel feedback={feedback} onCite={handleCite} />
           ) : (
             <p className="rounded-2xl bg-sage-50 p-5 text-sm leading-6 text-ink-muted">
-              No feedback has been generated for this session yet. Use Re-run to analyse the transcript.
+              No feedback has been generated for this session yet. Use Re-run to analyze the transcript.
             </p>
           )}
 
-          {feedback && <FollowUpThread turns={session.turns} />}
+          {feedback && (
+            <FollowUpThread turns={session.turns} suggestions={feedback.suggestedQuestions} />
+          )}
         </div>
       ) : (
         <TranscriptView transcript={session.transcript} highlight={highlight} />

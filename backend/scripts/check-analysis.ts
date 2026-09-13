@@ -8,10 +8,16 @@
  */
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { EMPTY_AUDIT, unverifiedProseTimestamps, verifyCitations, type CitationAudit } from '../src/analysis/citations';
+import {
+  EMPTY_AUDIT,
+  unverifiedProseTimestamps,
+  verifyAnchoredQuestions,
+  verifyCitations,
+  type CitationAudit,
+} from '../src/analysis/citations';
 import type { FeedbackMoment } from '../src/analysis/feedback.types';
 import { acceptsTemperature, supportsAdaptiveThinking } from '../src/analysis/claude-client';
-import { computeStats } from '../src/analysis/heuristic-analyser';
+import { computeStats } from '../src/analysis/heuristic-analyzer';
 import { isRename, resolveOrder } from '../src/sessions/session-rules';
 
 let failures = 0;
@@ -49,6 +55,11 @@ check('fabricated quote and timestamp', !kept({ timestamp: '99:99', speaker: 'Th
 check('fabricated quote, no timestamp', !kept({ timestamp: null, speaker: 'Therapist', quote: 'I think you should simply leave your family behind.' }));
 check('quote too generic to identify a line', !kept({ timestamp: null, speaker: 'Therapist', quote: 'Okay.' }));
 check('plausible clinical invention', !kept({ timestamp: null, speaker: 'Therapist', quote: 'Let us try a grounding exercise before we continue today.' }));
+// A fabricated quote used to resolve to any one-word turn it happened to
+// contain: "…right now" matched a client's "Right."
+check('fabrication containing a one-word line', !kept({ timestamp: null, speaker: 'Client', quote: 'I am leaving this session right now.' }));
+check('fabrication containing a short acknowledgement', !kept({ timestamp: null, speaker: 'Client', quote: 'That seems okay to me but I am not sure yet.' }));
+check('the model over-quoting a real short line still resolves', kept({ timestamp: null, speaker: 'Therapist', quote: 'What are some of the versions you\u2019ve written? I want to hear them.' }, untimed));
 
 console.log('\n# quotes come from the transcript, not the model');
 const audit: CitationAudit = { ...EMPTY_AUDIT };
@@ -77,7 +88,29 @@ console.log('\n# stats are computed from the transcript');
 const stats = computeStats(transcript);
 check('turn counts and talk share derived', stats.therapistTurns === 158 && stats.clientTurns === 157 && stats.therapistTalkSharePct === 52);
 
-console.log('\n# only a real rename takes the title from the analyser');
+console.log('\n# suggested questions are checked like any other claim');
+const qAudit: CitationAudit = { ...EMPTY_AUDIT };
+const questions = verifyAnchoredQuestions(
+  [
+    // Anchored to a line that exists.
+    { question: 'Should I have named the camera change before he did?', anchor: { timestamp: '0:14', speaker: 'Therapist', quote: 'You\u2019re right. I\u2019m keeping my camera off today.' } },
+    // The failure this feature was meant to remove: a question asserting an event that never happened.
+    { question: 'How did I handle the walkout?', anchor: { timestamp: '99:99', speaker: 'Client', quote: 'I am leaving this session right now.' } },
+    // Real timestamp, invented quote — the anchor still resolves by timestamp.
+    { question: 'Was the pacing right after the break?', anchor: { timestamp: '4:54', speaker: 'Therapist', quote: 'something the model made up' } },
+    // Nothing to check it against.
+    { question: 'What did I miss?', anchor: { timestamp: null, speaker: 'Therapist', quote: 'Okay.' } },
+  ],
+  transcript,
+  qAudit,
+);
+check('a question anchored to a real line is kept', questions.includes('Should I have named the camera change before he did?'));
+check('a question asserting an event that never happened is dropped', !questions.some((q) => q.includes('walkout')));
+check('a real timestamp rescues an invented quote', questions.includes('Was the pacing right after the break?'));
+check('an unanchorable question is dropped', !questions.includes('What did I miss?'));
+check('the audit counts what was dropped', qAudit.droppedItems === 2 && qAudit.verified === 2);
+
+console.log('\n# only a real rename takes the title from the analyzer');
 check('a changed title is a rename', isRename('Session 3', 'Daniel R. — custody'));
 check('the same title resubmitted is not', !isRename('Session 3', 'Session 3'));
 check('whitespace around an unchanged title is not', !isRename('Session 3', '  Session 3  '));

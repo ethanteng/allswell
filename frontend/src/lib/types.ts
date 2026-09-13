@@ -31,6 +31,8 @@ export interface SessionFeedback {
   strengths: FeedbackItem[];
   growthAreas: FeedbackItem[];
   themes: string[];
+  /** Absent on heuristic output and on analyses stored before this existed. */
+  suggestedQuestions?: string[];
   generatedBy: 'heuristic-stub' | 'llm';
 }
 
