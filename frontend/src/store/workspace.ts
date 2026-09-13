@@ -47,7 +47,28 @@ interface WorkspaceState {
   deleteSession: (sessionId: string) => Promise<void>;
 
   clearError: () => void;
+  /** Drops every account-scoped value. Called whenever the signed-in user changes. */
+  reset: () => void;
 }
+
+/**
+ * Account-scoped state, split out so `reset` cannot miss a field.
+ *
+ * The store is module-level and outlives a sign-out, so without this a second
+ * clinician signing in on the same tab would see the first one's clients and
+ * their open session — transcript and feedback included — until the reload that
+ * may never come. Clearing the token is not enough.
+ */
+const EMPTY_WORKSPACE = {
+  clients: [],
+  session: null,
+  selectedSessionId: null,
+  composeForClientId: null,
+  loadingClients: false,
+  loadingSession: false,
+  working: false,
+  error: null,
+} satisfies Partial<WorkspaceState>;
 
 function messageFor(error: unknown, fallback: string): string {
   if (error instanceof ApiError) return error.message;
@@ -56,17 +77,13 @@ function messageFor(error: unknown, fallback: string): string {
 }
 
 export const useWorkspace = create<WorkspaceState>((set, get) => ({
-  clients: [],
-  session: null,
-  selectedSessionId: null,
-  composeForClientId: null,
+  ...EMPTY_WORKSPACE,
   composeNonce: 0,
-  loadingClients: false,
-  loadingSession: false,
-  working: false,
-  error: null,
 
   clearError: () => set({ error: null }),
+
+  // Bump the nonce so a mounted composer clears its draft too.
+  reset: () => set((state) => ({ ...EMPTY_WORKSPACE, composeNonce: state.composeNonce + 1 })),
 
   loadClients: async () => {
     set({ loadingClients: true });

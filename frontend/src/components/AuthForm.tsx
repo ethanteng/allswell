@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { api, setToken } from '@/lib/api';
+import { useWorkspace } from '@/store/workspace';
 import { Logo } from './Logo';
 
 export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
@@ -25,6 +26,9 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     try {
       const result = isRegister ? await api.register(email, password, name) : await api.login(email, password);
       setToken(result.token);
+      // Covers signing in over a still-populated store — a token replaced
+      // without an explicit sign-out first.
+      useWorkspace.getState().reset();
       router.push('/app');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Something went wrong');

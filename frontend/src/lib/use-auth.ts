@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { useWorkspace } from '@/store/workspace';
 import { api, ApiError, clearToken, getToken } from './api';
 import type { AuthUser } from './types';
 
@@ -42,6 +43,9 @@ export function useAuth(): AuthState {
         // backend shouldn't throw away a valid session.
         if (error instanceof ApiError && error.status === 401) {
           clearToken();
+          // The rejected token may have belonged to someone else; nothing loaded
+          // under it should survive into the next sign-in on this tab.
+          useWorkspace.getState().reset();
           router.replace('/login');
           return;
         }
@@ -60,6 +64,7 @@ export function useAuth(): AuthState {
     checking,
     signOut: () => {
       clearToken();
+      useWorkspace.getState().reset();
       router.replace('/login');
     },
   };
