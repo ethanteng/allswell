@@ -44,6 +44,8 @@ interface WorkspaceState {
 
   editSession: (sessionId: string, changes: { title: string; sessionDate: string | null }) => Promise<void>;
   moveSession: (sessionId: string, clientId: string) => Promise<void>;
+  /** Reorders one client's sessions. `sessionIds` is that client's full list. */
+  reorderSessions: (clientId: string, sessionIds: string[]) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
 
   clearError: () => void;
@@ -217,6 +219,37 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
       await get().loadClients();
     } catch (error) {
       set({ error: messageFor(error, 'Could not move that session') });
+    }
+  },
+
+  /**
+   * Applied locally first, then confirmed by the server.
+   *
+   * A drag that snaps back for the length of a round trip reads as a failed
+   * drag, and the clinician drags again. The server's reply replaces the whole
+   * nav, so a rejected reorder corrects itself rather than persisting locally.
+   */
+  reorderSessions: async (clientId, sessionIds) => {
+    const previous = get().clients;
+    const order = new Map(sessionIds.map((id, index) => [id, index]));
+
+    set({
+      clients: previous.map((client) =>
+        client.id === clientId
+          ? {
+              ...client,
+              sessions: [...client.sessions].sort(
+                (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
+              ),
+            }
+          : client,
+      ),
+    });
+
+    try {
+      set({ clients: await api.reorderSessions(clientId, sessionIds) });
+    } catch (error) {
+      set({ clients: previous, error: messageFor(error, 'Could not reorder those sessions') });
     }
   },
 

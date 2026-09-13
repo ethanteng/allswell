@@ -12,6 +12,7 @@ import { EMPTY_AUDIT, unverifiedProseTimestamps, verifyCitations, type CitationA
 import type { FeedbackMoment } from '../src/analysis/feedback.types';
 import { acceptsTemperature, supportsAdaptiveThinking } from '../src/analysis/claude-client';
 import { computeStats } from '../src/analysis/heuristic-analyser';
+import { isRename, resolveOrder } from '../src/sessions/session-rules';
 
 let failures = 0;
 function check(label: string, passed: boolean): void {
@@ -75,6 +76,22 @@ for (const [model, thinking] of [['claude-sonnet-5', true], ['claude-opus-5', tr
 console.log('\n# stats are computed from the transcript');
 const stats = computeStats(transcript);
 check('turn counts and talk share derived', stats.therapistTurns === 158 && stats.clientTurns === 157 && stats.therapistTalkSharePct === 52);
+
+console.log('\n# only a real rename takes the title from the analyser');
+check('a changed title is a rename', isRename('Session 3', 'Daniel R. — custody'));
+check('the same title resubmitted is not', !isRename('Session 3', 'Session 3'));
+check('whitespace around an unchanged title is not', !isRename('Session 3', '  Session 3  '));
+check('a date-only edit sends no title at all', !isRename('Session 3', undefined));
+check('an empty title is still a change', isRename('Session 3', ''));
+
+console.log('\n# session ordering');
+const rows = ['a', 'b', 'c', 'd'];
+check('full list applied as given', resolveOrder(rows, ['d', 'a', 'c', 'b']).join('') === 'dacb');
+check('unnamed sessions follow, in their existing order', resolveOrder(rows, ['c', 'a']).join('') === 'cabd');
+check('duplicates collapse to the first occurrence', resolveOrder(rows, ['b', 'b', 'a']).join('') === 'bacd');
+check('ids that are not this client\'s are ignored', resolveOrder(rows, ['zz', 'c']).join('') === 'cabd');
+check('an empty request changes nothing', resolveOrder(rows, []).join('') === 'abcd');
+check('every session is still present exactly once', resolveOrder(rows, ['d', 'd', 'b']).slice().sort().join('') === 'abcd');
 
 console.log(failures === 0 ? '\nAll checks passed.' : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

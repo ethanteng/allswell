@@ -62,9 +62,17 @@ model Session {
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   title      String
-  transcript String @db.Text
+  /// True once a clinician has named the session themselves. Analysis writes a
+  /// title only while this is false, so re-running it never overwrites a rename.
+  titleCustom Boolean @default(false)
+  transcript  String  @db.Text
   /// When the session happened, as distinct from when it was pasted in.
   sessionDate DateTime?
+
+  /// Sort key within the client, smallest first. Explicit rather than derived
+  /// so a clinician's own ordering survives — dates and creation times cannot
+  /// express "this is the one I keep coming back to".
+  position Int @default(0)
 
   status       SessionStatus @default(DRAFT)
   /// Populated when status is FAILED so the UI can explain itself.

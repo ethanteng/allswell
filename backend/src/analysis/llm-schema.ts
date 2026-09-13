@@ -3,7 +3,11 @@ import { z } from 'zod';
 /**
  * What the model is asked to produce.
  *
- * Deliberately narrower than `SessionFeedback`: the stats block (turn counts,
+ * `title` is session metadata rather than feedback, so it is written onto the
+ * session itself instead of into `SessionFeedback` — and only while the
+ * clinician has not named the session themselves.
+ *
+ * Otherwise deliberately narrower than `SessionFeedback`: the stats block (turn counts,
  * question counts, talk share, duration) is computed from the transcript and
  * merged in afterwards. Asking a model to count turns invites confident wrong
  * numbers for something a parser gets exactly right, and a wrong number next to
@@ -43,6 +47,13 @@ const GrowthSchema = z.object({
 });
 
 export const LlmFeedbackSchema = z.object({
+  title: z
+    .string()
+    .describe(
+      'Short label naming what this session was about, for a clinician scanning a list of ' +
+        'sessions — e.g. "Boundary-setting with parents". A few words, not a sentence, and ' +
+        'not a line lifted from the transcript.',
+    ),
   headline: z.string().describe('One line characterising the session.'),
   summary: z
     .string()

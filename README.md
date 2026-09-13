@@ -159,7 +159,8 @@ User ─┬─ Client ── Session ── Turn
 - **Client** — a person the clinician sees. Just a name; sessions group under it.
 - **Session** — one transcript plus its feedback. Moving a session between
   clients is a write to `clientId` and nothing else, which is why turns hang off
-  the session rather than the client.
+  the session rather than the client. `position` is its sort key within the
+  client; `titleCustom` records whether the clinician named it themselves.
 - **Turn** — one exchange. The `ANALYSIS` turn holds structured feedback as
   JSON; `FOLLOW_UP` turns hold a question and a markdown answer. Both live in
   one table so the response pane renders them as a single ordered thread.
@@ -169,10 +170,36 @@ User ─┬─ Client ── Session ── Turn
 
 ### Notable behaviour
 
-- **Sessions are titled from the transcript.** The literal opening line is always
-  a greeting or an audio check, so `deriveTitle` skips the first 90 seconds and
-  prefers the agenda-setting turn ("last time we ended with…"). Clinicians can
-  rename anything.
+- **Sessions are titled by the model, with a fallback that always runs first.**
+  `deriveTitle` names the session from the transcript at the moment it is
+  created — the literal opening line is always a greeting or an audio check, so
+  it skips the first 90 seconds and prefers the agenda-setting turn ("last time
+  we ended with…"). A successful analysis then replaces that with a title the
+  model wrote. The derived one is what a session keeps when the model never got
+  to it: no API key, or a failed analysis. "Untitled session" at the moment a
+  clinician is hunting for the session to retry would be the worst time for it.
+- **A rename is permanent.** Naming a session by hand sets `titleCustom`, and
+  analysis never writes a title again. Re-running it — which an admin can
+  trigger for every session by changing the prompt — must not quietly undo a
+  clinician's own word for something. Three things follow from that, and each
+  one is a way the guarantee could have been lost:
+  - The check lives in the `UPDATE … WHERE titleCustom = false`, not in a flag
+    read before the call. An analysis takes the better part of a minute and the
+    edit dialog stays open throughout.
+  - A title sent with the transcript at creation counts as a name, not a guess.
+  - Resubmitting an unchanged title is not a rename. The edit dialog always
+    sends the title alongside the date, so treating the key's presence as a
+    rename would freeze the title of every session whose date was set.
+  - Sessions that predate the column are backfilled as custom, since nothing
+    records which of them a clinician named.
+- **Sessions sort by an explicit `position`, not by date.** New and moved
+  sessions land at the top of their client; drag to reorder, or use Move
+  up/Move down in the row menu, which is the same operation for anyone not
+  using a mouse. Dates and creation times cannot express "this is the one I
+  keep coming back to".
+- **The sidebar shows the session's own date**, falling back to a relative
+  "3d ago" only when there isn't one. When the session happened is the question
+  a clinician is asking; when it was pasted in only answers that by coincidence.
 - **Re-running an analysis clears the follow-up thread.** Those answers were
   written against feedback that no longer exists.
 - **Every query is scoped by `userId`**, so "not yours" and "does not exist"
@@ -192,6 +219,7 @@ All routes except `/health`, `/auth/register`, and `/auth/login` require
 | `GET` | `/auth/me` | Current user; re-read so a revoked admin flag takes effect. |
 | `GET` | `/clients` | The sidebar tree: clients with their sessions. |
 | `POST` · `PATCH` · `DELETE` | `/clients` · `/clients/:id` | Create, rename, delete. Deleting cascades to sessions and turns. |
+| `PATCH` | `/clients/:id/session-order` | Reorder a client's sessions. Takes the ids in their new order; returns the whole nav. |
 | `GET` | `/sessions/:id` | One session with its transcript and turns. |
 | `POST` | `/sessions` | Create from a transcript and run the first analysis. |
 | `POST` | `/sessions/:id/analyze` | Re-run. Replaces the analysis, clears follow-ups. |

@@ -11,6 +11,7 @@ import type { SessionFeedback } from '../analysis/feedback.types';
 import { isTherapist, parseTranscript } from '../analysis/transcript';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateSessionDto, FollowUpDto, UpdateSessionDto } from './dto/session.dto';
+import { isRename } from './session-rules';
 
 const SESSION_WITH_TURNS = {
   turns: { orderBy: { createdAt: 'asc' } },
@@ -56,8 +57,14 @@ export class SessionsService {
    * A transcript rarely carries a title, and "Session 3" tells the clinician
    * nothing in a list. The literal opening line is no better — it is always a
    * greeting or an audio check — so the first minute is skipped and the
-   * agenda-setting turn after it is preferred. Replaced by a model-written
-   * title once the LLM call lands.
+   * agenda-setting turn after it is preferred.
+   *
+   * A successful analysis replaces this with a title the model wrote, which
+   * reads better. This still runs first and stays the name of any session the
+   * model never got to: one analysed without an API key, and — the case that
+   * matters — one whose analysis failed. "Untitled session" at the moment a
+   * clinician is looking for the session to retry would be the worst time for
+   * it.
    */
   private deriveTitle(transcript: string): string {
     const clinicianLines = parseTranscript(transcript).filter(isTherapist);
@@ -111,6 +118,23 @@ export class SessionsService {
    * model call replaces it this should move to a queue and the ANALYZING status
    * — already in the schema — becomes the state the UI polls on.
    */
+  /**
+   * Where a session arriving in a client should sit: above everything already
+   * there.
+   *
+   * Going one below the current minimum keeps this to a single read, where
+   * "renumber everything from 1" would be a write per existing session. The
+   * numbers drift negative and non-contiguous, which costs nothing — they are
+   * sort keys, and a reorder rewrites them contiguously anyway.
+   */
+  private async topPosition(clientId: string): Promise<number> {
+    const top = await this.prisma.session.aggregate({
+      where: { clientId },
+      _min: { position: true },
+    });
+    return (top._min.position ?? 0) - 1;
+  }
+
   async create(userId: string, dto: CreateSessionDto) {
     const transcript = dto.transcript.trim();
     const clientId = await this.resolveClientId(userId, dto);
@@ -119,7 +143,11 @@ export class SessionsService {
       data: {
         userId,
         clientId,
+        // A title sent with the transcript was chosen, not derived, so it is
+        // the clinician's — the analysis must not replace it moments later.
         title: dto.title?.trim() || this.deriveTitle(transcript),
+        titleCustom: Boolean(dto.title?.trim()),
+        position: await this.topPosition(clientId),
         transcript,
         sessionDate: dto.sessionDate ? new Date(dto.sessionDate) : null,
         status: SessionStatus.ANALYZING,
@@ -146,7 +174,29 @@ export class SessionsService {
     try {
       const result = await this.analysis.analyse(session.transcript);
 
+      /*
+       * A rename is a deliberate act; a re-run (after an admin changes the
+       * prompt or model) is not a reason to undo one.
+       *
+       * The check belongs in the WHERE clause rather than in a `titleCustom`
+       * read from before the call. A real analysis takes the better part of a
+       * minute — measured at 51s against production — and the edit dialog stays
+       * open throughout. A clinician who renames the session while it runs
+       * would otherwise have that name overwritten on completion by a snapshot
+       * taken before they typed it.
+       */
+      const titleWrite =
+        result.title === null
+          ? []
+          : [
+              this.prisma.session.updateMany({
+                where: { id: session.id, titleCustom: false },
+                data: { title: result.title },
+              }),
+            ];
+
       await this.prisma.$transaction([
+        ...titleWrite,
         this.prisma.turn.deleteMany({ where: { sessionId: session.id } }),
         this.prisma.turn.create({
           data: {
@@ -223,7 +273,7 @@ export class SessionsService {
 
   /** Renames a session, moves it between clients, or both. */
   async update(userId: string, sessionId: string, dto: UpdateSessionDto) {
-    await this.ownedOrThrow(userId, sessionId);
+    const session = await this.ownedOrThrow(userId, sessionId);
 
     if (dto.clientId) {
       const target = await this.prisma.client.findFirst({ where: { id: dto.clientId, userId } });
@@ -233,8 +283,18 @@ export class SessionsService {
     return this.prisma.session.update({
       where: { id: sessionId },
       data: {
+        // Naming it by hand takes the title out of the analyser's hands for
+        // good — but only an actual rename counts, since the edit dialog
+        // resubmits the unchanged title alongside a date the clinician did
+        // change.
         ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
-        ...(dto.clientId !== undefined ? { clientId: dto.clientId } : {}),
+        ...(isRename(session.title, dto.title) ? { titleCustom: true } : {}),
+        // A moved session arrives at the top of its new client. Keeping its old
+        // position would drop it at an arbitrary depth in a list it has never
+        // been part of, which reads as the move having half-failed.
+        ...(dto.clientId !== undefined
+          ? { clientId: dto.clientId, position: await this.topPosition(dto.clientId) }
+          : {}),
         ...(dto.sessionDate !== undefined ? { sessionDate: dto.sessionDate ? new Date(dto.sessionDate) : null } : {}),
       },
       include: SESSION_WITH_TURNS,
