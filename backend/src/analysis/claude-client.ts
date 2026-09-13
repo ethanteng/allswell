@@ -112,9 +112,12 @@ function describeApiError(error: unknown): unknown {
   logger.error(`Anthropic API error (status=${error.status ?? 'none'}): ${error.message}`);
   if (!configProblem) return error;
 
+  // Worded to be true on both call sites: an analysis that failed, and a
+  // follow-up that went unanswered. Naming the transcript here would be wrong
+  // on the second — by then it has been saved for a while.
   return new Error(
-    'The analysis service is not configured correctly, so this session could not be analysed. ' +
-      'An administrator needs to check the API credentials. Your transcript has been saved.',
+    'The analysis service is not configured correctly, so this could not be completed. ' +
+      'An administrator needs to check its API credentials. Nothing you entered has been lost.',
   );
 }
 
