@@ -181,7 +181,17 @@ User ─┬─ Client ── Session ── Turn
 - **A rename is permanent.** Naming a session by hand sets `titleCustom`, and
   analysis never writes a title again. Re-running it — which an admin can
   trigger for every session by changing the prompt — must not quietly undo a
-  clinician's own word for something.
+  clinician's own word for something. Three things follow from that, and each
+  one is a way the guarantee could have been lost:
+  - The check lives in the `UPDATE … WHERE titleCustom = false`, not in a flag
+    read before the call. An analysis takes the better part of a minute and the
+    edit dialog stays open throughout.
+  - A title sent with the transcript at creation counts as a name, not a guess.
+  - Resubmitting an unchanged title is not a rename. The edit dialog always
+    sends the title alongside the date, so treating the key's presence as a
+    rename would freeze the title of every session whose date was set.
+  - Sessions that predate the column are backfilled as custom, since nothing
+    records which of them a clinician named.
 - **Sessions sort by an explicit `position`, not by date.** New and moved
   sessions land at the top of their client; drag to reorder, or use Move
   up/Move down in the row menu, which is the same operation for anyone not

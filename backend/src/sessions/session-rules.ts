@@ -4,17 +4,19 @@
  */
 
 /**
- * Whether an analysis may write its title onto the session.
+ * Whether a `PATCH /sessions/:id` carrying a title is really a rename.
  *
- * A re-run is not a reason to undo a rename: `POST /sessions/:id/analyze`
- * exists so an admin can change the prompt or model and regenerate, and a
- * clinician who named a session "Daniel R. — custody disclosure" should not
- * lose that because someone else edited a prompt.
+ * The edit dialog submits the title and the date together, so a clinician who
+ * only changed the date still sends the title they never touched. Treating
+ * that as a rename would silently take the session out of the analyser's hands
+ * for good — setting a date is a common action, and it would quietly stop the
+ * model from ever naming that session again.
  *
- * A type guard so a true answer also narrows the title away from null.
+ * So the comparison is against what is stored, not against whether the key was
+ * present. A title resubmitted unchanged is not a rename.
  */
-export function shouldAdoptTitle(modelTitle: string | null, titleCustom: boolean): modelTitle is string {
-  return modelTitle !== null && !titleCustom;
+export function isRename(current: string, submitted: string | undefined): boolean {
+  return submitted !== undefined && submitted.trim() !== current;
 }
 
 /**

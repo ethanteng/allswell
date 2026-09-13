@@ -11,7 +11,7 @@ import type { SessionFeedback } from '../analysis/feedback.types';
 import { isTherapist, parseTranscript } from '../analysis/transcript';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateSessionDto, FollowUpDto, UpdateSessionDto } from './dto/session.dto';
-import { shouldAdoptTitle } from './session-rules';
+import { isRename } from './session-rules';
 
 const SESSION_WITH_TURNS = {
   turns: { orderBy: { createdAt: 'asc' } },
@@ -143,7 +143,10 @@ export class SessionsService {
       data: {
         userId,
         clientId,
+        // A title sent with the transcript was chosen, not derived, so it is
+        // the clinician's — the analysis must not replace it moments later.
         title: dto.title?.trim() || this.deriveTitle(transcript),
+        titleCustom: Boolean(dto.title?.trim()),
         position: await this.topPosition(clientId),
         transcript,
         sessionDate: dto.sessionDate ? new Date(dto.sessionDate) : null,
@@ -171,11 +174,29 @@ export class SessionsService {
     try {
       const result = await this.analysis.analyse(session.transcript);
 
-      // A rename is a deliberate act; a re-run (after an admin changes the
-      // prompt or model) is not a reason to undo one.
-      const title = shouldAdoptTitle(result.title, session.titleCustom) ? { title: result.title } : {};
+      /*
+       * A rename is a deliberate act; a re-run (after an admin changes the
+       * prompt or model) is not a reason to undo one.
+       *
+       * The check belongs in the WHERE clause rather than in a `titleCustom`
+       * read from before the call. A real analysis takes the better part of a
+       * minute — measured at 51s against production — and the edit dialog stays
+       * open throughout. A clinician who renames the session while it runs
+       * would otherwise have that name overwritten on completion by a snapshot
+       * taken before they typed it.
+       */
+      const titleWrite =
+        result.title === null
+          ? []
+          : [
+              this.prisma.session.updateMany({
+                where: { id: session.id, titleCustom: false },
+                data: { title: result.title },
+              }),
+            ];
 
       await this.prisma.$transaction([
+        ...titleWrite,
         this.prisma.turn.deleteMany({ where: { sessionId: session.id } }),
         this.prisma.turn.create({
           data: {
@@ -189,7 +210,7 @@ export class SessionsService {
         }),
         this.prisma.session.update({
           where: { id: session.id },
-          data: { ...title, status: SessionStatus.COMPLETE, errorMessage: null },
+          data: { status: SessionStatus.COMPLETE, errorMessage: null },
         }),
       ]);
     } catch (error) {
@@ -252,7 +273,7 @@ export class SessionsService {
 
   /** Renames a session, moves it between clients, or both. */
   async update(userId: string, sessionId: string, dto: UpdateSessionDto) {
-    await this.ownedOrThrow(userId, sessionId);
+    const session = await this.ownedOrThrow(userId, sessionId);
 
     if (dto.clientId) {
       const target = await this.prisma.client.findFirst({ where: { id: dto.clientId, userId } });
@@ -262,8 +283,12 @@ export class SessionsService {
     return this.prisma.session.update({
       where: { id: sessionId },
       data: {
-        // Naming it by hand takes the title out of the analyser's hands for good.
-        ...(dto.title !== undefined ? { title: dto.title.trim(), titleCustom: true } : {}),
+        // Naming it by hand takes the title out of the analyser's hands for
+        // good — but only an actual rename counts, since the edit dialog
+        // resubmits the unchanged title alongside a date the clinician did
+        // change.
+        ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
+        ...(isRename(session.title, dto.title) ? { titleCustom: true } : {}),
         // A moved session arrives at the top of its new client. Keeping its old
         // position would drop it at an arbitrary depth in a list it has never
         // been part of, which reads as the move having half-failed.

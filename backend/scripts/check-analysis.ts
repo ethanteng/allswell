@@ -12,7 +12,7 @@ import { EMPTY_AUDIT, unverifiedProseTimestamps, verifyCitations, type CitationA
 import type { FeedbackMoment } from '../src/analysis/feedback.types';
 import { acceptsTemperature, supportsAdaptiveThinking } from '../src/analysis/claude-client';
 import { computeStats } from '../src/analysis/heuristic-analyser';
-import { resolveOrder, shouldAdoptTitle } from '../src/sessions/session-rules';
+import { isRename, resolveOrder } from '../src/sessions/session-rules';
 
 let failures = 0;
 function check(label: string, passed: boolean): void {
@@ -77,11 +77,12 @@ console.log('\n# stats are computed from the transcript');
 const stats = computeStats(transcript);
 check('turn counts and talk share derived', stats.therapistTurns === 158 && stats.clientTurns === 157 && stats.therapistTalkSharePct === 52);
 
-console.log('\n# a rename survives re-analysis');
-check('model title adopted on an unnamed session', shouldAdoptTitle('Boundary-setting with parents', false));
-check('model title refused once the clinician has named it', !shouldAdoptTitle('Boundary-setting with parents', true));
-check('no model title leaves an unnamed session alone', !shouldAdoptTitle(null, false));
-check('no model title leaves a named session alone', !shouldAdoptTitle(null, true));
+console.log('\n# only a real rename takes the title from the analyser');
+check('a changed title is a rename', isRename('Session 3', 'Daniel R. — custody'));
+check('the same title resubmitted is not', !isRename('Session 3', 'Session 3'));
+check('whitespace around an unchanged title is not', !isRename('Session 3', '  Session 3  '));
+check('a date-only edit sends no title at all', !isRename('Session 3', undefined));
+check('an empty title is still a change', isRename('Session 3', ''));
 
 console.log('\n# session ordering');
 const rows = ['a', 'b', 'c', 'd'];
