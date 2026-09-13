@@ -27,7 +27,17 @@ function getClient(): Anthropic {
     if (!hasApiKey()) {
       throw new Error('ANTHROPIC_API_KEY is not set; cannot call the model.');
     }
-    client = new Anthropic();
+
+    // An organisation-level key has no workspace of its own, so every request
+    // made with one must name the workspace to bill and scope it to. A
+    // workspace-scoped key carries that already and needs no header. Setting
+    // the variable is therefore optional, and sending an empty one would be a
+    // 400 in the other direction.
+    const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID?.trim();
+
+    client = new Anthropic({
+      ...(workspaceId ? { defaultHeaders: { 'anthropic-workspace-id': workspaceId } } : {}),
+    });
   }
   return client;
 }
@@ -82,6 +92,32 @@ function throwIfRefused(message: Anthropic.Message): void {
   );
 }
 
+/**
+ * Turns a credentials or configuration failure into a message that says so.
+ *
+ * These arrive as raw API JSON, and the clinician sees whatever we store on the
+ * session. "This API key is not scoped to a workspace" reads as the feature
+ * being broken; it is the deploy being misconfigured, and the person who can
+ * act on it is not the one reading it. The full error is logged either way, so
+ * nothing is lost for whoever does go looking.
+ */
+function describeApiError(error: unknown): unknown {
+  if (!(error instanceof Anthropic.APIError)) return error;
+
+  const configProblem =
+    error.status === 401 ||
+    error.status === 403 ||
+    (error.status === 400 && /api key|workspace/i.test(error.message));
+
+  logger.error(`Anthropic API error (status=${error.status ?? 'none'}): ${error.message}`);
+  if (!configProblem) return error;
+
+  return new Error(
+    'The analysis service is not configured correctly, so this session could not be analysed. ' +
+      'An administrator needs to check the API credentials. Your transcript has been saved.',
+  );
+}
+
 export interface CallOptions {
   model: string;
   maxTokens: number;
@@ -108,6 +144,15 @@ function effortConfig(model: string): { effort: 'high' } | Record<string, never>
   return supportsAdaptiveThinking(model) ? { effort: 'high' } : {};
 }
 
+/** Runs a streamed request, reporting a credentials failure as one. */
+async function finalMessage(start: () => { finalMessage(): Promise<Anthropic.Message> }): Promise<Anthropic.Message> {
+  try {
+    return await start().finalMessage();
+  } catch (error) {
+    throw describeApiError(error);
+  }
+}
+
 /**
  * Runs a prompt whose response is constrained to `schema`.
  *
@@ -123,16 +168,16 @@ export async function callStructured<Schema extends z.ZodType>(
   schema: Schema,
   options: CallOptions,
 ): Promise<z.infer<Schema>> {
-  const stream = getClient().messages.stream({
-    model: options.model,
-    max_tokens: options.maxTokens,
-    ...generationParams(options),
-    output_config: { ...effortConfig(options.model), format: zodOutputFormat(schema) },
-    system,
-    messages: [{ role: 'user', content: userMessage }],
-  });
-
-  const message = await stream.finalMessage();
+  const message = await finalMessage(() =>
+    getClient().messages.stream({
+      model: options.model,
+      max_tokens: options.maxTokens,
+      ...generationParams(options),
+      output_config: { ...effortConfig(options.model), format: zodOutputFormat(schema) },
+      system,
+      messages: [{ role: 'user', content: userMessage }],
+    }),
+  );
   throwIfRefused(message);
   warnIfTruncated(message.stop_reason, options.model);
 
@@ -144,16 +189,16 @@ export async function callStructured<Schema extends z.ZodType>(
 
 /** Runs a prompt whose response is prose. Used for follow-up answers. */
 export async function callText(system: string, userMessage: string, options: CallOptions): Promise<string> {
-  const stream = getClient().messages.stream({
-    model: options.model,
-    max_tokens: options.maxTokens,
-    ...generationParams(options),
-    ...(supportsAdaptiveThinking(options.model) ? { output_config: effortConfig(options.model) } : {}),
-    system,
-    messages: [{ role: 'user', content: userMessage }],
-  });
-
-  const message = await stream.finalMessage();
+  const message = await finalMessage(() =>
+    getClient().messages.stream({
+      model: options.model,
+      max_tokens: options.maxTokens,
+      ...generationParams(options),
+      ...(supportsAdaptiveThinking(options.model) ? { output_config: effortConfig(options.model) } : {}),
+      system,
+      messages: [{ role: 'user', content: userMessage }],
+    }),
+  );
   throwIfRefused(message);
   warnIfTruncated(message.stop_reason, options.model);
 
