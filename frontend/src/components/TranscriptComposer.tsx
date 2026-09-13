@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { FileText, LoaderCircle, Sparkles, Upload } from 'lucide-react';
+import { LoaderCircle, Sparkles, Upload } from 'lucide-react';
 import { useWorkspace } from '@/store/workspace';
-import { SAMPLE_TRANSCRIPTS, loadSample } from '@/lib/samples';
+import { fromDateInputValue } from '@/lib/format';
 
 const NEW_CLIENT = '__new__';
 
@@ -19,7 +19,6 @@ export function TranscriptComposer() {
   const [clientId, setClientId] = useState<string>(composeForClientId ?? NEW_CLIENT);
   const [newClientName, setNewClientName] = useState('');
   const [sessionDate, setSessionDate] = useState('');
-  const [loadingSample, setLoadingSample] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -47,21 +46,6 @@ export function TranscriptComposer() {
       setClientId(NEW_CLIENT);
     }
   }, [clients, clientId]);
-
-  async function handleSample() {
-    const sample = SAMPLE_TRANSCRIPTS[0];
-    setLoadingSample(true);
-    setLocalError(null);
-
-    try {
-      setTranscript(await loadSample(sample));
-      if (clientId === NEW_CLIENT && !newClientName.trim()) setNewClientName(sample.suggestedClientName);
-    } catch {
-      setLocalError('Could not load the sample transcript.');
-    } finally {
-      setLoadingSample(false);
-    }
-  }
 
   async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -92,7 +76,7 @@ export function TranscriptComposer() {
       transcript: trimmed,
       ...(clientId !== NEW_CLIENT ? { clientId } : {}),
       ...(clientId === NEW_CLIENT && newClientName.trim() ? { newClientName: newClientName.trim() } : {}),
-      ...(sessionDate ? { sessionDate: new Date(sessionDate).toISOString() } : {}),
+      ...(sessionDate ? { sessionDate: fromDateInputValue(sessionDate) ?? undefined } : {}),
     });
   }
 
@@ -128,11 +112,6 @@ export function TranscriptComposer() {
           />
 
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink/10 pt-4">
-            <button type="button" onClick={handleSample} className="btn-secondary px-4 text-[13px]" disabled={loadingSample || working}>
-              {loadingSample ? <LoaderCircle className="animate-spin" size={15} /> : <FileText size={15} />}
-              Use sample transcript
-            </button>
-
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}

@@ -1,4 +1,4 @@
-import { IsDateString, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsDateString, IsOptional, IsString, MaxLength, MinLength, ValidateIf } from 'class-validator';
 
 export class CreateSessionDto {
   @IsString()
@@ -41,9 +41,17 @@ export class UpdateSessionDto {
   @IsString()
   clientId?: string;
 
+  /**
+   * The date the session took place, as a calendar date.
+   *
+   * Explicit null clears it — a clinician who set the wrong date needs a way
+   * back to "unknown", and omitting the key means "leave unchanged" rather than
+   * "clear", so the two cases need different values.
+   */
   @IsOptional()
+  @ValidateIf((_object, value) => value !== null)
   @IsDateString({}, { message: 'Session date must be a valid date' })
-  sessionDate?: string;
+  sessionDate?: string | null;
 }
 
 export class FollowUpDto {

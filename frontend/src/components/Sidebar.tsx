@@ -20,9 +20,10 @@ import { Logo } from './Logo';
 import { RowMenu } from './ui/RowMenu';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { RenameDialog } from './RenameDialog';
+import { EditSessionDialog } from './EditSessionDialog';
 import { MoveSessionDialog } from './MoveSessionDialog';
 
-type PendingRename = { kind: 'client' | 'session'; id: string; current: string };
+type PendingRename = { kind: 'client'; id: string; current: string };
 type PendingDelete = { kind: 'client' | 'session'; id: string; name: string; sessionCount: number };
 
 /** Status dot on a session row. Only non-complete states earn a colour. */
@@ -39,7 +40,7 @@ function ClientGroup({
   client,
   onRename,
   onDelete,
-  onRenameSession,
+  onEditSession,
   onMoveSession,
   onDeleteSession,
   onNewSessionFor,
@@ -47,7 +48,7 @@ function ClientGroup({
   client: ClientWithSessions;
   onRename: (pending: PendingRename) => void;
   onDelete: (pending: PendingDelete) => void;
-  onRenameSession: (pending: PendingRename) => void;
+  onEditSession: (session: SessionSummary) => void;
   onMoveSession: (session: SessionSummary) => void;
   onDeleteSession: (pending: PendingDelete) => void;
   onNewSessionFor: (clientId: string) => void;
@@ -132,9 +133,9 @@ function ClientGroup({
                       label={`Actions for ${session.title}`}
                       actions={[
                         {
-                          label: 'Rename session',
+                          label: 'Edit session',
                           icon: <Pencil size={15} />,
-                          onSelect: () => onRenameSession({ kind: 'session', id: session.id, current: session.title }),
+                          onSelect: () => onEditSession(session),
                         },
                         {
                           label: 'Move to client…',
@@ -169,12 +170,13 @@ export function Sidebar({ user, onSignOut, onClose }: { user: AuthUser | null; o
     createClient,
     renameClient,
     deleteClient,
-    renameSession,
+    editSession,
     moveSession,
     deleteSession,
   } = useWorkspace();
 
   const [rename, setRename] = useState<PendingRename | null>(null);
+  const [editingSession, setEditingSession] = useState<SessionSummary | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [movingSession, setMovingSession] = useState<SessionSummary | null>(null);
   const [addingClient, setAddingClient] = useState(false);
@@ -247,7 +249,7 @@ export function Sidebar({ user, onSignOut, onClose }: { user: AuthUser | null; o
                   client={client}
                   onRename={setRename}
                   onDelete={setPendingDelete}
-                  onRenameSession={setRename}
+                  onEditSession={setEditingSession}
                   onMoveSession={setMovingSession}
                   onDeleteSession={setPendingDelete}
                   onNewSessionFor={newSessionFor}
@@ -281,19 +283,22 @@ export function Sidebar({ user, onSignOut, onClose }: { user: AuthUser | null; o
 
       <RenameDialog
         open={rename !== null}
-        title={rename?.kind === 'client' ? 'Rename client' : 'Rename session'}
-        description={
-          rename?.kind === 'client'
-            ? 'Use the name you would recognise this person by.'
-            : 'Give this session a title you will recognise in the list.'
-        }
-        label={rename?.kind === 'client' ? 'Client name' : 'Session title'}
+        title="Rename client"
+        description="Use the name you would recognise this person by."
+        label="Client name"
         initialValue={rename?.current ?? ''}
         onClose={() => setRename(null)}
         onSubmit={(value) => {
-          if (!rename) return;
-          if (rename.kind === 'client') void renameClient(rename.id, value);
-          else void renameSession(rename.id, value);
+          if (rename) void renameClient(rename.id, value);
+        }}
+      />
+
+      <EditSessionDialog
+        open={editingSession !== null}
+        session={editingSession}
+        onClose={() => setEditingSession(null)}
+        onSubmit={(changes) => {
+          if (editingSession) void editSession(editingSession.id, changes);
         }}
       />
 

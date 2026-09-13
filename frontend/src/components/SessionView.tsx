@@ -9,17 +9,17 @@ import { FeedbackPanel } from './FeedbackPanel';
 import { FollowUpThread } from './FollowUpThread';
 import { TranscriptView } from './TranscriptView';
 import { ConfirmDialog } from './ui/ConfirmDialog';
-import { RenameDialog } from './RenameDialog';
+import { EditSessionDialog } from './EditSessionDialog';
 import { MoveSessionDialog } from './MoveSessionDialog';
 
 type Tab = 'feedback' | 'transcript';
 
 export function SessionView({ session }: { session: SessionDetail }) {
-  const { clients, working, error, reanalyze, renameSession, moveSession, deleteSession } = useWorkspace();
+  const { clients, working, error, reanalyze, editSession, moveSession, deleteSession } = useWorkspace();
 
   const [tab, setTab] = useState<Tab>('feedback');
   const [highlight, setHighlight] = useState<string | null>(null);
-  const [renaming, setRenaming] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [moving, setMoving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -70,9 +70,9 @@ export function SessionView({ session }: { session: SessionDetail }) {
               {working ? <LoaderCircle className="animate-spin" size={15} /> : <RefreshCw size={15} />}
               Re-run
             </button>
-            <button type="button" className="btn-ghost px-3 text-[13px]" onClick={() => setRenaming(true)}>
+            <button type="button" className="btn-ghost px-3 text-[13px]" onClick={() => setEditing(true)}>
               <Pencil size={15} />
-              Rename
+              Edit
             </button>
             <button type="button" className="btn-ghost px-3 text-[13px]" onClick={() => setMoving(true)}>
               <FolderInput size={15} />
@@ -139,14 +139,11 @@ export function SessionView({ session }: { session: SessionDetail }) {
         <TranscriptView transcript={session.transcript} highlight={highlight} />
       )}
 
-      <RenameDialog
-        open={renaming}
-        title="Rename session"
-        description="Give this session a title you will recognise in the list."
-        label="Session title"
-        initialValue={session.title}
-        onClose={() => setRenaming(false)}
-        onSubmit={(value) => void renameSession(session.id, value)}
+      <EditSessionDialog
+        open={editing}
+        session={session}
+        onClose={() => setEditing(false)}
+        onSubmit={(changes) => void editSession(session.id, changes)}
       />
 
       <MoveSessionDialog

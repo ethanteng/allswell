@@ -1,11 +1,42 @@
-/** Date helpers shared by the sidebar and session header. */
+/** Date helpers shared by the sidebar, session header, and the edit dialog. */
+
+/**
+ * A session date is a calendar date, not an instant.
+ *
+ * It is stored as UTC midnight, so formatting it in the viewer's local zone
+ * renders the previous day for anyone west of UTC — every US timezone included.
+ * Reading and writing it in UTC keeps the date the clinician picked the date
+ * they see back.
+ */
+const CALENDAR_DATE_ZONE = 'UTC';
 
 export function formatSessionDate(iso: string | null): string | null {
   if (!iso) return null;
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
 
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: CALENDAR_DATE_ZONE,
+  });
+}
+
+/** ISO timestamp to the `YYYY-MM-DD` an `<input type="date">` expects. */
+export function toDateInputValue(iso: string | null): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return date.toISOString().slice(0, 10);
+}
+
+/** `YYYY-MM-DD` from a date input back to the stored UTC-midnight timestamp. */
+export function fromDateInputValue(value: string): string | null {
+  if (!value) return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 /** "3d ago" style label for list rows, where precision matters less than scanning. */

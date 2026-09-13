@@ -74,7 +74,8 @@ npm run dev            # backend on :3000, frontend on :3001
 ```
 
 Open **http://localhost:3001**, register with the email you put in
-`ADMIN_EMAILS`, and click **Use sample transcript** to see it work.
+`ADMIN_EMAILS`, then paste a transcript (or upload one — there is a sample at
+`frontend/public/samples/session-01-thanksgiving-boundaries.md`) to see it work.
 
 ### Other commands
 
