@@ -48,6 +48,7 @@ Edit `backend/.env`:
 | `JWT_SECRET` | Signs session tokens. `openssl rand -base64 32`. |
 | `ADMIN_EMAILS` | Comma-separated. These emails get admin rights on registration, which is what unlocks `/admin`. **Put your own email here** or you won't be able to open the admin page. |
 | `CORS_ORIGINS` | Comma-separated browser origins. `http://localhost:3001` for local dev. |
+| `CORS_ORIGIN_REGEX` | Optional. Regex for origins that can't be listed ahead of time — see [below](#a-note-on-cors-and-preview-deployments). Unset means exact allowlist only. |
 
 No Postgres handy? This works:
 
@@ -191,11 +192,12 @@ The repo includes `render.yaml`. In Render: **New → Blueprint**, point it at
 this repo. It provisions the web service and a Postgres instance, wires
 `DATABASE_URL`, and generates `JWT_SECRET`.
 
-Set these two in the dashboard afterwards:
+Set these in the dashboard afterwards:
 
 - `ADMIN_EMAILS` — your email, so you can open `/admin`.
-- `CORS_ORIGINS` — your Vercel URL (no trailing slash). The browser cannot
-  reach the API until this is right.
+- `CORS_ORIGINS` — your Vercel production URL (no trailing slash). The browser
+  cannot reach the API until this is right.
+- `CORS_ORIGIN_REGEX` — optional but recommended; see below.
 
 Migrations run on boot via `npm run start:render`, so a schema change ships with
 the deploy that needs it.
@@ -214,6 +216,28 @@ Set one environment variable:
   `https://allswell-api.onrender.com`, no trailing slash.
 
 It's baked in at build time, so changing it needs a redeploy.
+
+### A note on CORS and preview deployments
+
+Vercel gives every deployment its own hashed hostname — `allswell-a1b2c3d4-your-team.vercel.app`
+for a production build's immutable URL, `allswell-git-branch-your-team.vercel.app`
+for a branch preview. Only the stable production alias is predictable, so an
+exact allowlist covers that one and nothing else.
+
+Open the app on any other deployment URL and the preflight fails. The UI shows
+a bare "NetworkError when attempting to fetch resource", which reads like the
+API is down rather than a policy answer — it took a browser console to see the
+real cause the first time.
+
+`CORS_ORIGIN_REGEX` covers the rest. Scope it to your own team, not all of
+`vercel.app`:
+
+```
+CORS_ORIGIN_REGEX=^https://allswell-[a-z0-9-]+-your-team\.vercel\.app$
+```
+
+The anchors matter. Without `^` and `$` this would also match
+`https://allswell-x-your-team.vercel.app.attacker.com`.
 
 ### After first deploy
 
