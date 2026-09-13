@@ -12,6 +12,7 @@ import { EMPTY_AUDIT, unverifiedProseTimestamps, verifyCitations, type CitationA
 import type { FeedbackMoment } from '../src/analysis/feedback.types';
 import { acceptsTemperature, supportsAdaptiveThinking } from '../src/analysis/claude-client';
 import { computeStats } from '../src/analysis/heuristic-analyser';
+import { resolveOrder, shouldAdoptTitle } from '../src/sessions/session-rules';
 
 let failures = 0;
 function check(label: string, passed: boolean): void {
@@ -75,6 +76,21 @@ for (const [model, thinking] of [['claude-sonnet-5', true], ['claude-opus-5', tr
 console.log('\n# stats are computed from the transcript');
 const stats = computeStats(transcript);
 check('turn counts and talk share derived', stats.therapistTurns === 158 && stats.clientTurns === 157 && stats.therapistTalkSharePct === 52);
+
+console.log('\n# a rename survives re-analysis');
+check('model title adopted on an unnamed session', shouldAdoptTitle('Boundary-setting with parents', false));
+check('model title refused once the clinician has named it', !shouldAdoptTitle('Boundary-setting with parents', true));
+check('no model title leaves an unnamed session alone', !shouldAdoptTitle(null, false));
+check('no model title leaves a named session alone', !shouldAdoptTitle(null, true));
+
+console.log('\n# session ordering');
+const rows = ['a', 'b', 'c', 'd'];
+check('full list applied as given', resolveOrder(rows, ['d', 'a', 'c', 'b']).join('') === 'dacb');
+check('unnamed sessions follow, in their existing order', resolveOrder(rows, ['c', 'a']).join('') === 'cabd');
+check('duplicates collapse to the first occurrence', resolveOrder(rows, ['b', 'b', 'a']).join('') === 'bacd');
+check('ids that are not this client\'s are ignored', resolveOrder(rows, ['zz', 'c']).join('') === 'cabd');
+check('an empty request changes nothing', resolveOrder(rows, []).join('') === 'abcd');
+check('every session is still present exactly once', resolveOrder(rows, ['d', 'd', 'b']).slice().sort().join('') === 'abcd');
 
 console.log(failures === 0 ? '\nAll checks passed.' : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

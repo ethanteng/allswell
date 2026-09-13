@@ -10,6 +10,14 @@ import { DEFAULT_MODEL } from './model-catalog';
 
 export interface AnalysisResult {
   feedback: SessionFeedback;
+  /**
+   * A title for the session, when the model wrote one.
+   *
+   * Null on the heuristic path, which has no business naming anything. The
+   * caller keeps whatever title the session already has in that case, so a
+   * session always carries a usable name — including one whose analysis failed.
+   */
+  title: string | null;
   model: string;
   promptVersion: number;
   latencyMs: number;
@@ -63,6 +71,7 @@ export class AnalysisService {
       this.logger.warn('ANTHROPIC_API_KEY is not set; returning placeholder feedback.');
       return {
         feedback: analyseTranscript(transcript),
+        title: null,
         model: config.model,
         promptVersion: config.version,
         latencyMs: Date.now() - startedAt,
@@ -116,6 +125,7 @@ export class AnalysisService {
 
     return {
       feedback,
+      title: llm.title.trim() || null,
       model: config.model,
       promptVersion: config.version,
       latencyMs: Date.now() - startedAt,

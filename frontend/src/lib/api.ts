@@ -102,6 +102,13 @@ export const api = {
 
   deleteClient: (id: string) => request<{ id: string; deleted: boolean }>(`/clients/${id}`, { method: 'DELETE' }),
 
+  /** Sends the client's sessions in their new order; returns the whole nav. */
+  reorderSessions: (clientId: string, sessionIds: string[]) =>
+    request<ClientWithSessions[]>(`/clients/${clientId}/session-order`, {
+      method: 'PATCH',
+      body: JSON.stringify({ sessionIds }),
+    }),
+
   getSession: (id: string) => request<SessionDetail>(`/sessions/${id}`),
 
   createSession: (payload: { transcript: string; clientId?: string; newClientName?: string; title?: string; sessionDate?: string }) =>

@@ -3,8 +3,11 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import {
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
   FolderInput,
+  GripVertical,
   LogOut,
   Pencil,
   Plus,
@@ -15,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useWorkspace } from '@/store/workspace';
 import type { AuthUser, ClientWithSessions, SessionSummary } from '@/lib/types';
-import { relativeTime } from '@/lib/format';
+import { formatSessionDate, relativeTime } from '@/lib/format';
 import { Logo } from './Logo';
 import { RowMenu } from './ui/RowMenu';
 import { ConfirmDialog } from './ui/ConfirmDialog';
@@ -36,6 +39,24 @@ function StatusDot({ status }: { status: SessionSummary['status'] }) {
   return <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${tone}`} aria-hidden />;
 }
 
+/**
+ * Where the dragged row would land.
+ *
+ * Absolutely positioned on purpose: a line that occupied layout would shift
+ * every row below it as the pointer moves, so the target keeps sliding out from
+ * under the cursor.
+ */
+function DropLine({ visible, edge }: { visible: boolean; edge: 'top' | 'bottom' }) {
+  return (
+    <span
+      aria-hidden
+      className={`pointer-events-none absolute inset-x-0 z-10 h-0.5 rounded-full bg-sage-200 transition-opacity ${
+        edge === 'top' ? 'top-0' : 'bottom-0'
+      } ${visible ? 'opacity-100' : 'opacity-0'}`}
+    />
+  );
+}
+
 function ClientGroup({
   client,
   onRename,
@@ -54,7 +75,45 @@ function ClientGroup({
   onNewSessionFor: (clientId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
-  const { selectedSessionId, selectSession } = useWorkspace();
+  const { selectedSessionId, selectSession, reorderSessions } = useWorkspace();
+
+  /** The row being dragged, and the gap it would drop into. */
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+
+  const order = client.sessions.map((session) => session.id);
+
+  function commit(next: string[]) {
+    if (next.length === order.length && next.every((id, index) => id === order[index])) return;
+    void reorderSessions(client.id, next);
+  }
+
+  /** Moves one session to a gap index, counted in the pre-move list. */
+  function moveTo(sessionId: string, gap: number) {
+    const from = order.indexOf(sessionId);
+    if (from === -1) return;
+
+    const next = [...order];
+    next.splice(from, 1);
+    // Removing the row shifts every later gap down by one.
+    next.splice(gap > from ? gap - 1 : gap, 0, sessionId);
+    commit(next);
+  }
+
+  function nudge(sessionId: string, delta: -1 | 1) {
+    const from = order.indexOf(sessionId);
+    const to = from + delta;
+    if (from === -1 || to < 0 || to >= order.length) return;
+
+    const next = [...order];
+    [next[from], next[to]] = [next[to], next[from]];
+    commit(next);
+  }
+
+  function endDrag() {
+    setDraggingId(null);
+    setDropIndex(null);
+  }
 
   return (
     <div className="rounded-xl">
@@ -101,57 +160,122 @@ function ClientGroup({
       </div>
 
       {expanded && (
-        <div className="ml-4 border-l border-white/10 pl-2">
+        <div
+          className="ml-4 border-l border-white/10 pl-2"
+          onDragLeave={(event) => {
+            // Only when the pointer leaves the list itself, not on the way
+            // between two rows inside it.
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropIndex(null);
+          }}
+          onDrop={endDrag}
+        >
           {client.sessions.length === 0 ? (
             <p className="px-2.5 py-2 text-xs leading-5 text-white/35">No sessions yet.</p>
           ) : (
-            client.sessions.map((session) => {
+            client.sessions.map((session, index) => {
               const isActive = session.id === selectedSessionId;
+              const isDragging = session.id === draggingId;
+              const date = formatSessionDate(session.sessionDate);
 
               return (
-                <div
-                  key={session.id}
-                  className={`group flex items-center gap-1 rounded-lg transition ${
-                    isActive ? 'bg-white/[0.13]' : 'hover:bg-white/[0.06]'
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => void selectSession(session.id)}
-                    aria-current={isActive ? 'true' : undefined}
-                    className="min-w-0 flex-1 rounded-lg px-2.5 py-2 text-left focus-visible:ring-offset-ink"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <StatusDot status={session.status} />
-                      <span className="line-clamp-2 text-[13px] leading-[18px] text-white/85">{session.title}</span>
-                    </span>
-                    <span className="mt-0.5 block text-[11px] text-white/35">{relativeTime(session.createdAt)}</span>
-                  </button>
+                <div key={session.id} className="relative">
+                  <DropLine visible={dropIndex === index} edge="top" />
 
-                  <div className="opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
-                    <RowMenu
-                      label={`Actions for ${session.title}`}
-                      actions={[
-                        {
-                          label: 'Edit session',
-                          icon: <Pencil size={15} />,
-                          onSelect: () => onEditSession(session),
-                        },
-                        {
-                          label: 'Move to client…',
-                          icon: <FolderInput size={15} />,
-                          onSelect: () => onMoveSession(session),
-                        },
-                        {
-                          label: 'Delete session',
-                          icon: <Trash2 size={15} />,
-                          destructive: true,
-                          onSelect: () =>
-                            onDeleteSession({ kind: 'session', id: session.id, name: session.title, sessionCount: 0 }),
-                        },
-                      ]}
-                    />
+                  <div
+                    draggable
+                    onDragStart={(event) => {
+                      setDraggingId(session.id);
+                      event.dataTransfer.effectAllowed = 'move';
+                      // Firefox starts no drag at all without payload set.
+                      event.dataTransfer.setData('text/plain', session.id);
+                    }}
+                    onDragEnd={endDrag}
+                    onDragOver={(event) => {
+                      if (!draggingId) return;
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+
+                      // Past the midpoint means the gap below this row.
+                      const box = event.currentTarget.getBoundingClientRect();
+                      setDropIndex(event.clientY < box.top + box.height / 2 ? index : index + 1);
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (draggingId && dropIndex !== null) moveTo(draggingId, dropIndex);
+                      endDrag();
+                    }}
+                    className={`group flex items-center gap-1 rounded-lg transition ${
+                      isDragging ? 'opacity-40' : isActive ? 'bg-white/[0.13]' : 'hover:bg-white/[0.06]'
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className="grid w-4 shrink-0 cursor-grab place-items-center self-stretch text-white/0 transition group-hover:text-white/25 active:cursor-grabbing"
+                    >
+                      <GripVertical size={13} />
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => void selectSession(session.id)}
+                      aria-current={isActive ? 'true' : undefined}
+                      className="min-w-0 flex-1 rounded-lg py-2 pr-1 text-left focus-visible:ring-offset-ink"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <StatusDot status={session.status} />
+                        <span className="line-clamp-2 text-[13px] leading-[18px] text-white/85">{session.title}</span>
+                      </span>
+                      {/* The session's own date is what a clinician looks for.
+                          "3d ago" describes when it was pasted in, which only
+                          answers that question by coincidence. */}
+                      <span className="mt-0.5 block text-[11px] text-white/35">
+                        {date ?? relativeTime(session.createdAt)}
+                      </span>
+                    </button>
+
+                    <div className="opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+                      <RowMenu
+                        label={`Actions for ${session.title}`}
+                        actions={[
+                          {
+                            label: 'Edit session',
+                            icon: <Pencil size={15} />,
+                            onSelect: () => onEditSession(session),
+                          },
+                          // Dragging is the obvious way to reorder and the one
+                          // nobody can do from a keyboard.
+                          {
+                            label: 'Move up',
+                            icon: <ArrowUp size={15} />,
+                            disabled: index === 0,
+                            onSelect: () => nudge(session.id, -1),
+                          },
+                          {
+                            label: 'Move down',
+                            icon: <ArrowDown size={15} />,
+                            disabled: index === client.sessions.length - 1,
+                            onSelect: () => nudge(session.id, 1),
+                          },
+                          {
+                            label: 'Move to client…',
+                            icon: <FolderInput size={15} />,
+                            onSelect: () => onMoveSession(session),
+                          },
+                          {
+                            label: 'Delete session',
+                            icon: <Trash2 size={15} />,
+                            destructive: true,
+                            onSelect: () =>
+                              onDeleteSession({ kind: 'session', id: session.id, name: session.title, sessionCount: 0 }),
+                          },
+                        ]}
+                      />
+                    </div>
                   </div>
+
+                  {index === client.sessions.length - 1 && (
+                    <DropLine visible={dropIndex === client.sessions.length} edge="bottom" />
+                  )}
                 </div>
               );
             })

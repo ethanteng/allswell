@@ -8,6 +8,8 @@ export interface RowMenuAction {
   icon: React.ReactNode;
   onSelect: () => void;
   destructive?: boolean;
+  /** Kept visible but inert — a row's actions should not move between rows. */
+  disabled?: boolean;
 }
 
 /**
@@ -66,13 +68,14 @@ export function RowMenu({ label, actions }: { label: string; actions: RowMenuAct
               key={action.label}
               type="button"
               role="menuitem"
+              disabled={action.disabled}
               onClick={(event) => {
                 event.stopPropagation();
                 setOpen(false);
                 action.onSelect();
               }}
-              className={`flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm transition hover:bg-sage-50 ${
-                action.destructive ? 'text-clay-700 hover:bg-clay-50' : 'text-ink'
+              className={`flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent ${
+                action.destructive ? 'text-clay-700 hover:bg-clay-50' : 'text-ink hover:bg-sage-50'
               }`}
             >
               {action.icon}

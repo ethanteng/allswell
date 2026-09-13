@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { ArrayMaxSize, ArrayNotEmpty, IsArray, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class CreateClientDto {
   @IsString()
@@ -23,4 +23,13 @@ export class UpdateClientDto {
   @IsString()
   @MaxLength(2000)
   notes?: string;
+}
+
+/** The client's sessions in their new order, as a complete list of ids. */
+export class ReorderSessionsDto {
+  @IsArray()
+  @ArrayNotEmpty({ message: 'Send the sessions in their new order' })
+  @ArrayMaxSize(500)
+  @IsString({ each: true })
+  sessionIds!: string[];
 }
