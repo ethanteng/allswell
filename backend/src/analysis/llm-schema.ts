@@ -63,6 +63,14 @@ export const LlmFeedbackSchema = z.object({
   themes: z
     .array(z.string())
     .describe('Clinical themes present, for orientation rather than judgment.'),
+  suggestedQuestions: z
+    .array(z.string())
+    .describe(
+      'Exactly three short questions this clinician might want to ask you about this session, ' +
+        'written in their voice ("Where did I…", "Should I have…"). Each must be answerable from ' +
+        'this transcript and point at something specific that happened in it — not generic ' +
+        'supervision prompts. Do not include timestamps.',
+    ),
 });
 
 export type LlmFeedback = z.infer<typeof LlmFeedbackSchema>;

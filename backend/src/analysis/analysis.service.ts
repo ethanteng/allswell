@@ -120,6 +120,7 @@ export class AnalysisService {
       strengths,
       growthAreas,
       themes: llm.themes,
+      suggestedQuestions: llm.suggestedQuestions,
       generatedBy: 'llm',
     };
 

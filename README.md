@@ -227,6 +227,13 @@ User ─┬─ Client ── Session ── Turn
   up/Move down in the row menu, which is the same operation for anyone not
   using a mouse. Dates and creation times cannot express "this is the one I
   keep coming back to".
+- **The follow-up openers are written for the session.** The model returns three
+  questions in the clinician's voice, alongside the feedback. They replaced a
+  hardcoded trio that presumed things: "how did I handle the rupture" reads as
+  an accusation when there wasn't one, and "the second half" means nothing for a
+  twelve-minute transcript. Generic fallbacks cover the heuristic path and
+  feedback stored before the field existed — a blander question is a weaker
+  prompt, a confidently wrong one is a worse product.
 - **The sidebar shows the session's own date**, falling back to a relative
   "3d ago" only when there isn't one. When the session happened is the question
   a clinician is asking; when it was pasted in only answers that by coincidence.

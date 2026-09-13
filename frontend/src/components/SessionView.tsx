@@ -133,7 +133,9 @@ export function SessionView({ session }: { session: SessionDetail }) {
             </p>
           )}
 
-          {feedback && <FollowUpThread turns={session.turns} />}
+          {feedback && (
+            <FollowUpThread turns={session.turns} suggestions={feedback.suggestedQuestions} />
+          )}
         </div>
       ) : (
         <TranscriptView transcript={session.transcript} highlight={highlight} />

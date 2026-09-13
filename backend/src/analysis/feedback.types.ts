@@ -42,6 +42,15 @@ export interface SessionFeedback {
   growthAreas: FeedbackItem[];
   /** Clinical themes present, for orientation rather than judgment. */
   themes: string[];
+  /**
+   * Openers for the follow-up thread, written against this session.
+   *
+   * Optional because it is not in feedback stored before this field existed,
+   * and because the heuristic analyzer has no business inventing questions
+   * about a transcript it only pattern-matched. The UI falls back to generic
+   * prompts when it is missing.
+   */
+  suggestedQuestions?: string[];
   /** Distinguishes stub output from real model output in the UI. */
   generatedBy: 'heuristic-stub' | 'llm';
 }
