@@ -48,6 +48,7 @@ Edit `backend/.env`:
 | `JWT_SECRET` | Signs session tokens. `openssl rand -base64 32`. |
 | `ADMIN_EMAILS` | Comma-separated. These emails get admin rights on registration, which is what unlocks `/admin`. **Put your own email here** or you won't be able to open the admin page. |
 | `CORS_ORIGINS` | Comma-separated browser origins. `http://localhost:3001` for local dev. |
+| `CORS_ORIGIN_REGEX` | Optional. Regex for origins that can't be listed ahead of time — see [below](#a-note-on-cors-and-preview-deployments). Unset means exact allowlist only. |
 
 No Postgres handy? This works:
 
@@ -191,11 +192,12 @@ The repo includes `render.yaml`. In Render: **New → Blueprint**, point it at
 this repo. It provisions the web service and a Postgres instance, wires
 `DATABASE_URL`, and generates `JWT_SECRET`.
 
-Set these two in the dashboard afterwards:
+Set these in the dashboard afterwards:
 
 - `ADMIN_EMAILS` — your email, so you can open `/admin`.
-- `CORS_ORIGINS` — your Vercel URL (no trailing slash). The browser cannot
-  reach the API until this is right.
+- `CORS_ORIGINS` — your Vercel production URL (no trailing slash). The browser
+  cannot reach the API until this is right.
+- `CORS_ORIGIN_REGEX` — optional but recommended; see below.
 
 Migrations run on boot via `npm run start:render`, so a schema change ships with
 the deploy that needs it.
@@ -213,7 +215,41 @@ Set one environment variable:
 - `NEXT_PUBLIC_API_URL` — your Render service URL, e.g.
   `https://allswell-api.onrender.com`, no trailing slash.
 
-It's baked in at build time, so changing it needs a redeploy.
+It's baked in at build time, so changing it needs a redeploy. Adding or editing
+the variable does **not** rebuild anything on its own — the previously built
+bundle keeps the old value until a new deploy runs, which looks exactly like the
+variable not having been saved.
+
+**Watch for a second, unwanted project.** Vercel's monorepo detection scans the
+repository and offers a project per buildable directory, so importing this repo
+can create an `allswell-backend` alongside the frontend one. That project builds
+`backend/`, which belongs on Render: it has none of the API's environment
+variables and no serverless adapter, so it cannot work, and it reports its own
+status on every pull request — green while it silently does nothing, red once
+paused. Delete it rather than pausing it; a paused project keeps failing every
+PR. Only the project whose root directory is `frontend` should exist here.
+
+### A note on CORS and preview deployments
+
+Vercel gives every deployment its own hashed hostname — `allswell-a1b2c3d4-your-team.vercel.app`
+for a production build's immutable URL, `allswell-git-branch-your-team.vercel.app`
+for a branch preview. Only the stable production alias is predictable, so an
+exact allowlist covers that one and nothing else.
+
+Open the app on any other deployment URL and the preflight fails. The UI shows
+a bare "NetworkError when attempting to fetch resource", which reads like the
+API is down rather than a policy answer — it took a browser console to see the
+real cause the first time.
+
+`CORS_ORIGIN_REGEX` covers the rest. Scope it to your own team, not all of
+`vercel.app`:
+
+```
+CORS_ORIGIN_REGEX=^https://allswell-[a-z0-9-]+-your-team\.vercel\.app$
+```
+
+The anchors matter. Without `^` and `$` this would also match
+`https://allswell-x-your-team.vercel.app.attacker.com`.
 
 ### After first deploy
 
