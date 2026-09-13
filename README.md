@@ -102,6 +102,9 @@ have. Scoping to a workspace is the better arrangement regardless: spend limits
 and key revocation land on this app rather than on everything the organisation
 runs.
 
+The default model is **Claude Sonnet 5**; the admin page also offers Opus 5,
+Opus 4.8 and Haiku 4.5, and switching is a config change rather than a deploy.
+
 With a key, three things shape the call.
 
 **The model only writes judgement.** The schema it fills in
@@ -136,6 +139,33 @@ and newer take adaptive thinking and `output_config.effort` and reject
 `temperature`; Haiku 4.5 is the reverse. `claude-client.ts` sends each model only
 what it accepts, so choosing one in the admin page can't produce a 400 that looks
 like the feature being broken.
+
+**Themes come from two different places, and only one of them is analysis.** On
+the model path they are free text the model writes. The heuristic fallback
+matches a fixed list of nine regexes, so it reports which of nine labels fired,
+not what the session was about. One label — `LGBTQ+ identity and disclosure` —
+happens to be a phrase the model reaches for too, which makes the two harder to
+tell apart by eye than they should be. They are never blended: the two paths are
+mutually exclusive, and the placeholder banner marks the fallback wherever it
+appears.
+
+### When it fails
+
+- **No `ANTHROPIC_API_KEY`** → the heuristic analyser, labelled a placeholder
+  everywhere it appears.
+- **Bad credentials, or a key that names no workspace** → surfaced as a
+  configuration problem in the clinician's words, with the underlying API error
+  logged in full. The person who can act on it is not the person reading the
+  session, so the UI gets the summary and the logs keep the detail.
+- **A refusal**, or a response truncated at `max_tokens` → reported as what it
+  is. With structured output, truncation otherwise presents as an unparseable
+  JSON error, which points at the wrong thing.
+- **Where the message goes** differs by path, because an analysis has somewhere
+  to put it and a follow-up doesn't. A failed analysis writes `status: FAILED`
+  and `errorMessage` onto the session, and the UI reads it from there. A
+  follow-up has no turn to attach to until an answer exists — inventing an empty
+  one to hold an error would put a failed exchange in the thread the clinician is
+  reading — so it returns `503` carrying the message instead.
 
 Analysis runs inline on the request. The `ANALYZING` status exists in the schema
 for the queue this should become; see [what I'd do next](#what-id-do-next-in-order).
@@ -357,9 +387,12 @@ concrete rather than hypothetical.
 
 1. **Move analysis off the request path.** It runs inline today; a queue plus the
    existing `ANALYZING` status is the fix, with the UI polling.
-2. **Broaden the tests.** `npm test` in `backend/` covers citation verification
-   and the model-generation guards — the pure logic whose failures are silent.
-   The HTTP layer and the React components are still only exercised by hand.
+2. **Broaden the tests.** `npm test` in `backend/` is 34 checks over the pure
+   logic whose failures are silent: citation verification, the model-generation
+   guards, session ordering, and what counts as a rename. The HTTP layer and the
+   React components are exercised by hand and by scripted browser runs, neither
+   of which is in the repository or in CI. That is the gap — and the review
+   history below says exactly which kind of bug it lets through.
 3. **Prompt iteration** against several of the ten transcripts, using the admin
    page and Re-run to compare versions on the same session.
 4. **Evaluation**, which the current design is set up for: the same transcript
@@ -406,9 +439,45 @@ How it was used:
   citation-linked feedback was the thing worth building the response pane
   around, came from Claude reading the transcript.
 - **Verified by running it, not by assertion.** The API was exercised end to end
-  against a real Postgres (auth, CRUD, move, re-run, admin config), the
-  authorisation boundaries were probed with a second non-admin account, and the
-  UI was driven with Playwright. That surfaced three real bugs: the auto-title
-  picked the greeting instead of the agenda-setting turn, the placeholder
-  analyser had false-positive citations that didn't support their claims, and
-  the mobile layout rendered the logo twice.
+  against a real Postgres (auth, CRUD, move, re-run, admin config),
+  authorisation boundaries were probed with a second non-admin account, the UI
+  was driven with Playwright, and the deployed stack was analysed live. Bugs
+  that surfaced this way: the auto-title picked the greeting instead of the
+  agenda-setting turn; the placeholder analyser produced citations that didn't
+  support their claims; the mobile layout rendered the logo twice; session dates
+  rendered a day early in every US timezone, because a calendar date was stored
+  as UTC midnight and formatted locally; and preview deployments failed CORS in
+  a way the UI reported as a generic network error.
+
+- **Reviewed by a second model, which is where most of the real bugs came from.**
+  Every pull request was reviewed by Codex, and it found **twelve** defects
+  across them. A sample:
+
+  | | |
+  |---|---|
+  | The Zustand store outlived sign-out | A second clinician on the same machine saw the previous one's transcript and feedback |
+  | `AdminGuard` trusted the `isAdmin` JWT claim | Revoking admin left an issued token still admitting its holder |
+  | Citations resolved by timestamp only | A transcript pasted without timestamps lost **every** feedback point — silent, total, indistinguishable from "nothing to say" |
+  | Follow-up prose was never citation-checked | The guarantee the product is built on held on one path and not the one beside it |
+  | `titleCustom` read before the model call | A rename typed during the 51-second analysis was overwritten on completion |
+  | A migration backfilled every row as not-renamed | Sessions renamed before the column existed would lose those names on the next re-analysis |
+
+  Each was reproduced before being fixed and re-run after — the untimed-transcript
+  one printed `feedback points kept : 0 (model produced 2)` before the fix.
+
+  The pattern is worth stating plainly, because it is a fact about how I verify:
+  **I test that features work, and miss the paths where state changes underneath
+  them.** Sign-out, token revocation, a rename landing mid-request, a migration
+  meeting rows that predate it. My own testing caught bugs in what the code
+  computes; the review caught bugs in what happens when something else moves
+  first. The `titleCustom` race is the sharpest example — I had extracted that
+  rule into a pure function and unit-tested it in all four combinations, which is
+  precisely why it looked covered. Every test passed against a function reading a
+  value the database had already moved past.
+
+- **Run against production, not just described.** The live stack analysed the
+  sample transcript with `claude-sonnet-5`: 10 cited moments, all 10 verbatim in
+  the transcript, 0 unresolved, with stats computed rather than asked for. It
+  identified the camera-off rupture as the growth area and located its cost at
+  the client's `[27:07] "I'm trying not to cry because you can't see me."` —
+  which is the reading of that transcript I would defend.
