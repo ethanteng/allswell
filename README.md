@@ -157,9 +157,14 @@ appears.
   configuration problem in the clinician's words, with the underlying API error
   logged in full. The person who can act on it is not the person reading the
   session, so the UI gets the summary and the logs keep the detail.
-- **A refusal**, or a response truncated at `max_tokens` → reported as what it
-  is. With structured output, truncation otherwise presents as an unparseable
-  JSON error, which points at the wrong thing.
+- **A refusal** → reported as a refusal, not swallowed.
+- **A response truncated at `max_tokens`** → handled differently by path,
+  because prose survives being cut short and a JSON object does not. An
+  analysis fails, naming the budget and the setting that raises it: left alone,
+  the SDK's parser throws first and blames the schema for what is really an
+  admin-fixable limit. A follow-up keeps the partial answer and marks it as
+  incomplete — the same call as the unverified-citation notice, since a mostly
+  complete answer is still worth reading, but never as a finished one.
 - **Where the message goes** differs by path, because an analysis has somewhere
   to put it and a follow-up doesn't. A failed analysis writes `status: FAILED`
   and `errorMessage` onto the session, and the UI reads it from there. A

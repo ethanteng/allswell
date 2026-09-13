@@ -70,15 +70,13 @@ export function acceptsTemperature(model: string): boolean {
   return !supportsAdaptiveThinking(model);
 }
 
-/**
- * A response that stopped at `max_tokens` is a partial answer. With structured
- * output that usually means unparseable JSON, which surfaces as a confusing
- * schema error rather than "the budget was too small" — so name it.
- */
-function warnIfTruncated(stopReason: string | null | undefined, model: string): void {
-  if (stopReason === 'max_tokens') {
-    logger.warn(`Response truncated at max_tokens (model=${model}). Raise maxTokens in the admin settings.`);
-  }
+/** True when the model ran out of room before finishing. */
+function wasTruncated(message: Anthropic.Message): boolean {
+  return message.stop_reason === 'max_tokens';
+}
+
+function logTruncation(model: string): void {
+  logger.warn(`Response truncated at max_tokens (model=${model}). Raise maxTokens in the admin settings.`);
 }
 
 /** A safety decline is an outcome to report, not an exception to swallow. */
@@ -147,11 +145,39 @@ function effortConfig(model: string): { effort: 'high' } | Record<string, never>
   return supportsAdaptiveThinking(model) ? { effort: 'high' } : {};
 }
 
-/** Runs a streamed request, reporting a credentials failure as one. */
-async function finalMessage(start: () => { finalMessage(): Promise<Anthropic.Message> }): Promise<Anthropic.Message> {
+const TRUNCATION_ERROR =
+  'The model ran out of room before it finished. ' +
+  'Raise Max tokens in the admin settings and try again.';
+
+interface StreamLike {
+  finalMessage(): Promise<Anthropic.Message>;
+  readonly currentMessage?: Anthropic.Message | undefined;
+}
+
+/**
+ * Awaits a streamed request, reporting credentials and budget failures as
+ * themselves.
+ *
+ * Truncation is checked on the way out *and* in the catch. With structured
+ * output the SDK parses as it accumulates, so a response cut mid-object throws
+ * from inside `finalMessage()` — before any `stop_reason` we could inspect is
+ * returned — and the error names a JSON syntax problem. That points at the
+ * schema or the model when the real cause is a budget an admin can raise. The
+ * accumulated snapshot still carries the reason, so it is read from there.
+ */
+async function settle(stream: StreamLike, model: string): Promise<Anthropic.Message> {
   try {
-    return await start().finalMessage();
+    const message = await stream.finalMessage();
+    if (message.stop_reason === 'max_tokens') {
+      logTruncation(model);
+      throw new Error(TRUNCATION_ERROR);
+    }
+    return message;
   } catch (error) {
+    if (stream.currentMessage?.stop_reason === 'max_tokens') {
+      logTruncation(model);
+      throw new Error(TRUNCATION_ERROR);
+    }
     throw describeApiError(error);
   }
 }
@@ -171,18 +197,19 @@ export async function callStructured<Schema extends z.ZodType>(
   schema: Schema,
   options: CallOptions,
 ): Promise<z.infer<Schema>> {
-  const message = await finalMessage(() =>
-    getClient().messages.stream({
-      model: options.model,
-      max_tokens: options.maxTokens,
-      ...generationParams(options),
-      output_config: { ...effortConfig(options.model), format: zodOutputFormat(schema) },
-      system,
-      messages: [{ role: 'user', content: userMessage }],
-    }),
-  );
+  const stream = getClient().messages.stream({
+    model: options.model,
+    max_tokens: options.maxTokens,
+    ...generationParams(options),
+    output_config: { ...effortConfig(options.model), format: zodOutputFormat(schema) },
+    system,
+    messages: [{ role: 'user', content: userMessage }],
+  });
+
+  // Truncation is fatal here — a partial object has nothing to render — so
+  // `settle` throws rather than returning something half-built.
+  const message = await settle(stream, options.model);
   throwIfRefused(message);
-  warnIfTruncated(message.stop_reason, options.model);
 
   const text = message.content.find((block): block is Anthropic.TextBlock => block.type === 'text')?.text;
   if (!text) throw new Error('The model returned no content.');
@@ -192,21 +219,48 @@ export async function callStructured<Schema extends z.ZodType>(
 
 /** Runs a prompt whose response is prose. Used for follow-up answers. */
 export async function callText(system: string, userMessage: string, options: CallOptions): Promise<string> {
-  const message = await finalMessage(() =>
-    getClient().messages.stream({
-      model: options.model,
-      max_tokens: options.maxTokens,
-      ...generationParams(options),
-      ...(supportsAdaptiveThinking(options.model) ? { output_config: effortConfig(options.model) } : {}),
-      system,
-      messages: [{ role: 'user', content: userMessage }],
-    }),
-  );
+  const stream = getClient().messages.stream({
+    model: options.model,
+    max_tokens: options.maxTokens,
+    ...generationParams(options),
+    ...(supportsAdaptiveThinking(options.model) ? { output_config: effortConfig(options.model) } : {}),
+    system,
+    messages: [{ role: 'user', content: userMessage }],
+  });
+
+  // Prose is readable when cut short, so this path handles truncation itself
+  // rather than letting `settle` turn it into a failure.
+  let message: Anthropic.Message;
+  try {
+    message = await stream.finalMessage();
+  } catch (error) {
+    throw describeApiError(error);
+  }
   throwIfRefused(message);
-  warnIfTruncated(message.stop_reason, options.model);
 
   const text = message.content.find((block): block is Anthropic.TextBlock => block.type === 'text')?.text;
   if (!text?.trim()) throw new Error('The model returned no content.');
+
+  /*
+   * Prose survives truncation in a way structured output does not — a mostly
+   * complete answer is still worth reading — so it is kept and marked rather
+   * than thrown away. The same call as the unverified-citation notice: the
+   * clinician judges, but never without being told.
+   *
+   * What is not acceptable is returning it bare. An answer that stops
+   * mid-sentence, presented as finished, is the failure this whole feature is
+   * built to avoid.
+   */
+  if (wasTruncated(message)) {
+    logTruncation(options.model);
+    return [
+      text,
+      '',
+      '---',
+      '_This answer was cut off before it finished — the model reached its token limit. ' +
+        'Raise **Max tokens** in the admin settings and ask again for the rest._',
+    ].join('\n');
+  }
 
   return text;
 }
