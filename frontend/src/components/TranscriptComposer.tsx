@@ -68,7 +68,7 @@ export function TranscriptComposer() {
 
     const trimmed = transcript.trim();
     if (trimmed.length < MIN_TRANSCRIPT_LENGTH) {
-      setLocalError('That transcript looks too short to analyse.');
+      setLocalError('That transcript looks too short to analyze.');
       return;
     }
 
@@ -197,7 +197,7 @@ export function TranscriptComposer() {
             {working ? (
               <>
                 <LoaderCircle className="animate-spin" size={16} />
-                Analysing…
+                Analyzing…
               </>
             ) : (
               <>

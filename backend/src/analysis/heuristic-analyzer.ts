@@ -2,12 +2,12 @@ import type { FeedbackItem, FeedbackMoment, FeedbackStats, SessionFeedback } fro
 import { excerpt, isClient, isTherapist, parseTranscript, type Utterance } from './transcript';
 
 /**
- * Placeholder analyser that stands in for the model call.
+ * Placeholder analyzer that stands in for the model call.
  *
  * It is deliberately *not* canned text: it parses the transcript and cites real
  * lines, so the response UI is exercised with genuine data and the citation
  * affordances can be judged before any prompt work happens. The clinical
- * reasoning is shallow by construction — keyword detectors, not judgement —
+ * reasoning is shallow by construction — keyword detectors, not judgment —
  * which is why every payload is stamped `generatedBy: 'heuristic-stub'` and the
  * UI labels it as a placeholder.
  */
@@ -45,7 +45,7 @@ const STRENGTH_DETECTORS: Detector[] = [
   {
     title: 'Reflected and consolidated before moving on',
     detail:
-      'Summarising the client’s position back to them — including the bind they are in — checks understanding and slows an anxious pace.',
+      'Summarizing the client’s position back to them — including the bind they are in — checks understanding and slows an anxious pace.',
     patterns: [/\bso one version\b/i, /\bit sounds like\b/i, /\bwhat i hear\b/i, /\blet me (summari[sz]e|make sure)\b/i, /\bso (the|there is|there’s)\b/i, /\bthank you\.? it sounds\b/i],
   },
   {
@@ -75,7 +75,7 @@ const STRENGTH_DETECTORS: Detector[] = [
   {
     title: 'Converted insight into a testable between-session step',
     detail:
-      'A specific behavioural experiment with a predicted outcome and a measure gives the next session real data instead of impressions.',
+      'A specific behavioral experiment with a predicted outcome and a measure gives the next session real data instead of impressions.',
     patterns: [/\bbehavio(u)?ral experiment\b/i, /\bbetween sessions\b/i, /\bwhat is your prediction\b/i, /\bhow could you measure\b/i, /\bwould you be willing to try\b/i],
   },
   {
@@ -206,7 +206,7 @@ const THEME_PATTERNS: Array<[string, RegExp]> = [
   ['Grief and loss', /\bgrief|sad(ness)?|loss|died\b/i],
   ['LGBTQ+ identity and disclosure', /\b(trans|pronouns?|came out|queer|partner’s identity)\b/i],
   ['Couple and partner dynamics', /\b(partner|boyfriend|girlfriend|spouse|husband|wife)\b/i],
-  ['Avoidance and safety behaviours', /\bavoid(ing|ance)?|freez(e|ing)|over-?prepare\b/i],
+  ['Avoidance and safety behaviors', /\bavoid(ing|ance)?|freez(e|ing)|over-?prepare\b/i],
   ['Shame', /\bsham(e|eful)|embarrass(ed|ment)\b/i],
   ['Therapeutic alliance and rupture', /\b(camera|connected to me|reschedule|repair)\b/i],
 ];
@@ -259,7 +259,7 @@ export function computeStats(transcript: string): FeedbackStats {
  * Produces structured feedback for a transcript. Pure and synchronous — no
  * network — so it is safe to call inline on the request path.
  */
-export function analyseTranscript(transcript: string): SessionFeedback {
+export function analyzeTranscript(transcript: string): SessionFeedback {
   const utterances = parseTranscript(transcript);
   const therapistLines = utterances.filter(isTherapist);
   const clientLines = utterances.filter(isClient);
@@ -271,7 +271,7 @@ export function analyseTranscript(transcript: string): SessionFeedback {
   const strengths = runDetectors(STRENGTH_DETECTORS, therapistLines, 5);
   const growthAreas = runDetectors(GROWTH_DETECTORS, therapistLines, 4);
 
-  // A transcript with no recognisable clinician turns is almost always a paste
+  // A transcript with no recognizable clinician turns is almost always a paste
   // problem, and saying so beats returning four empty cards.
   const unparsed = therapistLines.length === 0;
 
@@ -285,7 +285,7 @@ export function analyseTranscript(transcript: string): SessionFeedback {
     ? 'The transcript could not be split into speaker turns, so no session-level feedback was produced. Check that each line is prefixed with a speaker label such as "Therapist:" or "Client:".'
     : `${therapistLines.length} clinician turns and ${clientLines.length} client turns${
         talkShare !== null ? `, with the clinician accounting for roughly ${talkShare}% of what was said` : ''
-      }. ${therapistQuestions} clinician turns contained a question. The notes below cite specific moments; they are pattern matches over the transcript, not clinical judgement.`;
+      }. ${therapistQuestions} clinician turns contained a question. The notes below cite specific moments; they are pattern matches over the transcript, not clinical judgment.`;
 
   return {
     headline,

@@ -26,7 +26,7 @@ interface WorkspaceState {
 
   loadingClients: boolean;
   loadingSession: boolean;
-  /** True while a transcript is being analysed or a follow-up answered. */
+  /** True while a transcript is being analyzed or a follow-up answered. */
   working: boolean;
   error: string | null;
 
@@ -132,7 +132,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
       await get().loadClients();
       return session.id;
     } catch (error) {
-      set({ error: messageFor(error, 'Could not analyse that transcript') });
+      set({ error: messageFor(error, 'Could not analyze that transcript') });
       return null;
     } finally {
       set({ working: false });

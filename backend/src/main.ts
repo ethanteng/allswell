@@ -34,7 +34,7 @@ async function bootstrap(): Promise<void> {
    * deployment URL then fails the preflight, which presents as a bare
    * "NetworkError" in the UI and is easy to misread as the API being down.
    *
-   * Left unset, behaviour is an exact allowlist and nothing else.
+   * Left unset, behavior is an exact allowlist and nothing else.
    */
   const originPatternSource = process.env.CORS_ORIGIN_REGEX?.trim();
   let originPattern: RegExp | null = null;

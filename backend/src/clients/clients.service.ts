@@ -10,7 +10,7 @@ export class ClientsService {
   /**
    * Every read and write goes through a userId-scoped lookup rather than a bare
    * findUnique on the id. That makes "not yours" indistinguishable from "does
-   * not exist", which is the behaviour we want for client records.
+   * not exist", which is the behavior we want for client records.
    */
   private async ownedOrThrow(userId: string, clientId: string) {
     const client = await this.prisma.client.findFirst({ where: { id: clientId, userId } });

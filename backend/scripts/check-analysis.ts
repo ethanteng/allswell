@@ -11,7 +11,7 @@ import { join } from 'path';
 import { EMPTY_AUDIT, unverifiedProseTimestamps, verifyCitations, type CitationAudit } from '../src/analysis/citations';
 import type { FeedbackMoment } from '../src/analysis/feedback.types';
 import { acceptsTemperature, supportsAdaptiveThinking } from '../src/analysis/claude-client';
-import { computeStats } from '../src/analysis/heuristic-analyser';
+import { computeStats } from '../src/analysis/heuristic-analyzer';
 import { isRename, resolveOrder } from '../src/sessions/session-rules';
 
 let failures = 0;
@@ -77,7 +77,7 @@ console.log('\n# stats are computed from the transcript');
 const stats = computeStats(transcript);
 check('turn counts and talk share derived', stats.therapistTurns === 158 && stats.clientTurns === 157 && stats.therapistTalkSharePct === 52);
 
-console.log('\n# only a real rename takes the title from the analyser');
+console.log('\n# only a real rename takes the title from the analyzer');
 check('a changed title is a rename', isRename('Session 3', 'Daniel R. — custody'));
 check('the same title resubmitted is not', !isRename('Session 3', 'Session 3'));
 check('whitespace around an unchanged title is not', !isRename('Session 3', '  Session 3  '));

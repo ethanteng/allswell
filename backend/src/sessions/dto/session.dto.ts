@@ -2,13 +2,13 @@ import { IsDateString, IsOptional, IsString, MaxLength, MinLength, ValidateIf } 
 
 export class CreateSessionDto {
   @IsString()
-  @MinLength(50, { message: 'That transcript looks too short to analyse' })
+  @MinLength(50, { message: 'That transcript looks too short to analyze' })
   transcript!: string;
 
   /**
    * Optional: when omitted the session is filed under a new client named from
    * `newClientName`, or "New client" if that is omitted too. This is what lets
-   * a clinician paste a transcript before deciding how to organise anything.
+   * a clinician paste a transcript before deciding how to organize anything.
    */
   @IsOptional()
   @IsString()

@@ -12,7 +12,7 @@
   }
 
   /* Every interactive element gets a visible focus ring; the sidebar is dark,
-     so the ring colour is set per-surface rather than globally. */
+     so the ring color is set per-surface rather than globally. */
   :focus-visible {
     @apply outline-none ring-2 ring-sage-500 ring-offset-2 ring-offset-paper;
   }

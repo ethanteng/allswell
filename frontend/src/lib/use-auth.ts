@@ -24,7 +24,7 @@ export function useAuth(): AuthState {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
+    let canceled = false;
 
     async function verify() {
       if (!getToken()) {
@@ -34,7 +34,7 @@ export function useAuth(): AuthState {
 
       try {
         const me = await api.me();
-        if (!cancelled) {
+        if (!canceled) {
           setUser(me);
           setChecking(false);
         }
@@ -49,13 +49,13 @@ export function useAuth(): AuthState {
           router.replace('/login');
           return;
         }
-        if (!cancelled) setChecking(false);
+        if (!canceled) setChecking(false);
       }
     }
 
     void verify();
     return () => {
-      cancelled = true;
+      canceled = true;
     };
   }, [router]);
 

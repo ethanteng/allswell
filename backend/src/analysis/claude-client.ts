@@ -28,7 +28,7 @@ function getClient(): Anthropic {
       throw new Error('ANTHROPIC_API_KEY is not set; cannot call the model.');
     }
 
-    // An organisation-level key has no workspace of its own, so every request
+    // An organization-level key has no workspace of its own, so every request
     // made with one must name the workspace to bill and scope it to. A
     // workspace-scoped key carries that already and needs no header. Setting
     // the variable is therefore optional, and sending an empty one would be a
@@ -64,7 +64,7 @@ export function supportsAdaptiveThinking(model: string): boolean {
  * The mirror image: sampling parameters were removed in the same generation
  * that added thinking, so `temperature` is a 400 on exactly the models that
  * accept `effort`. The admin page exposes temperature because older models
- * honour it; this is what keeps it from reaching one that doesn't.
+ * honor it; this is what keeps it from reaching one that doesn't.
  */
 export function acceptsTemperature(model: string): boolean {
   return !supportsAdaptiveThinking(model);
@@ -87,7 +87,7 @@ function throwIfRefused(message: Anthropic.Message): void {
 
   const category = message.stop_details?.type === 'refusal' ? message.stop_details.category : null;
   throw new Error(
-    `The model declined to analyse this transcript${category ? ` (${category})` : ''}. ` +
+    `The model declined to analyze this transcript${category ? ` (${category})` : ''}. ` +
       'This can happen with difficult clinical content; try re-running, or review the session manually.',
   );
 }
@@ -140,7 +140,7 @@ function generationParams({ model, temperature }: CallOptions) {
 }
 
 /**
- * Clinical judgement is intelligence-sensitive work, so this asks for depth
+ * Clinical judgment is intelligence-sensitive work, so this asks for depth
  * rather than leaving it at the default. Omitted on models that reject it.
  */
 function effortConfig(model: string): { effort: 'high' } | Record<string, never> {

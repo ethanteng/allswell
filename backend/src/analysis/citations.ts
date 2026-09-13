@@ -47,7 +47,7 @@ function timestampKey(timestamp: string | null): number | null {
 }
 
 /** Strips the differences that don't change what was said. */
-function normalise(text: string): string {
+function normalize(text: string): string {
   return text
     .toLowerCase()
     .replace(/[‘’]/g, "'")
@@ -66,8 +66,8 @@ function normalise(text: string): string {
  * a misattribution.
  */
 function quoteMatchesLine(quote: string, line: string): boolean {
-  const quoted = normalise(quote);
-  const actual = normalise(line);
+  const quoted = normalize(quote);
+  const actual = normalize(line);
   if (!quoted) return false;
   if (actual.includes(quoted) || quoted.includes(actual)) return true;
 
@@ -97,13 +97,13 @@ function indexByTimestamp(utterances: Utterance[]): Map<number, Utterance> {
  * whose quote is right but whose timestamp is a line or two off.
  */
 function findByQuote(quote: string, utterances: Utterance[]): Utterance | null {
-  const quoted = normalise(quote);
+  const quoted = normalize(quote);
   if (quoted.length < 12) return null; // too short to identify a line
 
   const prefix = quoted.slice(0, 80);
 
   for (const utterance of utterances) {
-    const actual = normalise(utterance.text);
+    const actual = normalize(utterance.text);
     if (!actual) continue;
     if (actual.includes(prefix) || (quoted.length >= 20 && quoted.includes(actual))) {
       return utterance;

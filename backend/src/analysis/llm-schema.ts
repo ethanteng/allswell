@@ -54,7 +54,7 @@ export const LlmFeedbackSchema = z.object({
         'sessions — e.g. "Boundary-setting with parents". A few words, not a sentence, and ' +
         'not a line lifted from the transcript.',
     ),
-  headline: z.string().describe('One line characterising the session.'),
+  headline: z.string().describe('One line characterizing the session.'),
   summary: z
     .string()
     .describe('Short paragraph a supervisor would open with, addressed to the clinician.'),
@@ -62,7 +62,7 @@ export const LlmFeedbackSchema = z.object({
   growthAreas: z.array(GrowthSchema),
   themes: z
     .array(z.string())
-    .describe('Clinical themes present, for orientation rather than judgement.'),
+    .describe('Clinical themes present, for orientation rather than judgment.'),
 });
 
 export type LlmFeedback = z.infer<typeof LlmFeedbackSchema>;

@@ -158,7 +158,7 @@ export function FeedbackPanel({
       {feedback.strengths.length === 0 && feedback.growthAreas.length === 0 && (
         <p className="rounded-2xl bg-sage-50 p-5 text-sm leading-6 text-ink-muted">
           No feedback points were produced for this transcript. If the transcript uses an unusual speaker format, the
-          parser may not have recognised the clinician&apos;s turns.
+          parser may not have recognized the clinician&apos;s turns.
         </p>
       )}
     </div>
