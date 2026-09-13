@@ -1,7 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { callStructured, callText, hasApiKey, type CallOptions } from './claude-client';
-import { EMPTY_AUDIT, unverifiedProseTimestamps, verifyCitations, type CitationAudit } from './citations';
+import {
+  EMPTY_AUDIT,
+  unverifiedProseTimestamps,
+  verifyAnchoredQuestions,
+  verifyCitations,
+  type CitationAudit,
+} from './citations';
 import { DEFAULT_ANALYSIS_PROMPT, DEFAULT_FOLLOW_UP_PROMPT } from './default-prompts';
 import type { FeedbackStats, SessionFeedback } from './feedback.types';
 import { analyzeTranscript, computeStats } from './heuristic-analyzer';
@@ -111,6 +117,16 @@ export class AnalysisService {
       );
     }
 
+    // A question that asserts an event is a claim about the session, so it is
+    // checked like the rest of them. The anchor exists only for this.
+    const questionAudit: CitationAudit = { ...EMPTY_AUDIT };
+    const suggestedQuestions = verifyAnchoredQuestions(llm.suggestedQuestions, transcript, questionAudit);
+    if (questionAudit.droppedItems > 0) {
+      this.logger.warn(
+        `Dropped ${questionAudit.droppedItems} suggested question(s) whose anchor named no line in the transcript.`,
+      );
+    }
+
     const feedback: SessionFeedback = {
       headline: llm.headline,
       summary: llm.summary,
@@ -120,7 +136,7 @@ export class AnalysisService {
       strengths,
       growthAreas,
       themes: llm.themes,
-      suggestedQuestions: llm.suggestedQuestions,
+      suggestedQuestions,
       generatedBy: 'llm',
     };
 

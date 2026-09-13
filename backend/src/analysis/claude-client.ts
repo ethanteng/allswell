@@ -239,20 +239,28 @@ export async function callText(system: string, userMessage: string, options: Cal
   throwIfRefused(message);
 
   const text = message.content.find((block): block is Anthropic.TextBlock => block.type === 'text')?.text;
-  if (!text?.trim()) throw new Error('The model returned no content.');
 
   /*
-   * Prose survives truncation in a way structured output does not — a mostly
-   * complete answer is still worth reading — so it is kept and marked rather
-   * than thrown away. The same call as the unverified-citation notice: the
-   * clinician judges, but never without being told.
+   * Truncation is checked before the empty-text case, not after.
    *
-   * What is not acceptable is returning it bare. An answer that stops
-   * mid-sentence, presented as finished, is the failure this whole feature is
-   * built to avoid.
+   * Thinking tokens count against `max_tokens`, and adaptive thinking is on for
+   * every current model, so a budget set too low can be spent entirely on
+   * thinking — leaving a message with `stop_reason: max_tokens` and no text
+   * block at all. Rejecting that as "the model returned no content" would name
+   * the symptom and hide the one cause an admin can fix, which is the mistake
+   * this whole change exists to correct.
+   *
+   * Prose that did arrive survives truncation in a way structured output does
+   * not — a mostly complete answer is still worth reading — so it is kept and
+   * marked rather than thrown away, the same call as the unverified-citation
+   * notice. What is not acceptable is returning it bare: an answer that stops
+   * mid-sentence, presented as finished, is the failure this feature is built
+   * to avoid.
    */
   if (wasTruncated(message)) {
     logTruncation(options.model);
+    if (!text?.trim()) throw new Error(TRUNCATION_ERROR);
+
     return [
       text,
       '',
@@ -261,6 +269,8 @@ export async function callText(system: string, userMessage: string, options: Cal
         'Raise **Max tokens** in the admin settings and ask again for the rest._',
     ].join('\n');
   }
+
+  if (!text?.trim()) throw new Error('The model returned no content.');
 
   return text;
 }

@@ -232,13 +232,18 @@ User ─┬─ Client ── Session ── Turn
   up/Move down in the row menu, which is the same operation for anyone not
   using a mouse. Dates and creation times cannot express "this is the one I
   keep coming back to".
-- **The follow-up openers are written for the session.** The model returns three
-  questions in the clinician's voice, alongside the feedback. They replaced a
-  hardcoded trio that presumed things: "how did I handle the rupture" reads as
-  an accusation when there wasn't one, and "the second half" means nothing for a
-  twelve-minute transcript. Generic fallbacks cover the heuristic path and
-  feedback stored before the field existed — a blander question is a weaker
-  prompt, a confidently wrong one is a worse product.
+- **The follow-up openers are written for the session, and anchored.** The model
+  returns three questions in the clinician's voice alongside the feedback,
+  each carrying a transcript moment it refers to. The anchor is never shown; it
+  exists so the question can be checked, and one whose anchor names no real line
+  is dropped rather than displayed. A question can assert an event — "how did I
+  handle the rupture" claims there was one — so it is treated as a claim about
+  the session like any other. That is the whole reason these are model-written:
+  the hardcoded trio they replaced could not be wrong about a specific session
+  because it never referred to one, and replacing it with unchecked model text
+  would only have moved the same failure somewhere harder to notice. Generic
+  fallbacks cover the heuristic path and feedback stored before the field
+  existed.
 - **The sidebar shows the session's own date**, falling back to a relative
   "3d ago" only when there isn't one. When the session happened is the question
   a clinician is asking; when it was pasted in only answers that by coincidence.

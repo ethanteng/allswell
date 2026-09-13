@@ -96,6 +96,13 @@ function indexByTimestamp(utterances: Utterance[]): Map<number, Utterance> {
  * instead of silently discarding every point, and it also rescues a citation
  * whose quote is right but whose timestamp is a line or two off.
  */
+/**
+ * How much of a transcript line has to be present in a quote before the quote
+ * is taken to refer to it. Short acknowledgements — "Right.", "Okay." — appear
+ * inside almost any sentence by chance.
+ */
+const MIN_CONTAINED_LINE = 25;
+
 function findByQuote(quote: string, utterances: Utterance[]): Utterance | null {
   const quoted = normalize(quote);
   if (quoted.length < 12) return null; // too short to identify a line
@@ -105,9 +112,22 @@ function findByQuote(quote: string, utterances: Utterance[]): Utterance | null {
   for (const utterance of utterances) {
     const actual = normalize(utterance.text);
     if (!actual) continue;
-    if (actual.includes(prefix) || (quoted.length >= 20 && quoted.includes(actual))) {
-      return utterance;
-    }
+
+    // The model quoted the start of a longer turn.
+    if (actual.includes(prefix)) return utterance;
+
+    /*
+     * Or it quoted more than the line holds — real when a clinician's turn is
+     * one short sentence, and the model ran it together with the next.
+     *
+     * The line has to be substantial for that to mean anything. Without a floor
+     * here, a wholly fabricated quote matches any one-word turn whose text it
+     * happens to contain: "I am leaving this session right now" resolves to a
+     * client's "Right." That is worse than not matching, because the citation
+     * then survives with a real timestamp and a real speaker attached to a
+     * claim the line does not support.
+     */
+    if (actual.length >= MIN_CONTAINED_LINE && quoted.includes(actual)) return utterance;
   }
 
   return null;
@@ -163,6 +183,52 @@ export function verifyCitations<T extends FeedbackItem>(
   }
 
   return kept;
+}
+
+export interface AnchoredQuestion {
+  question: string;
+  anchor: FeedbackMoment;
+}
+
+/**
+ * Keeps only the suggested questions whose anchor names a real line.
+ *
+ * A question can assert an event: "How did I handle the rupture?" claims there
+ * was one. Offered as the way into a supervision conversation, that is a claim
+ * about the session like any other, and it gets checked like any other — which
+ * is the whole reason these are model-written rather than hardcoded. A set of
+ * fixed questions could not be wrong about a specific session because it never
+ * referred to one; replacing it with unverified model text would have moved the
+ * same failure somewhere harder to notice.
+ *
+ * The anchor is never displayed. It exists so the question has something to be
+ * checked against, and a question whose anchor resolves to nothing is dropped
+ * rather than shown.
+ */
+export function verifyAnchoredQuestions(
+  questions: AnchoredQuestion[],
+  transcript: string,
+  audit: CitationAudit,
+): string[] {
+  const utterances = parseTranscript(transcript);
+  const index = indexByTimestamp(utterances);
+
+  return questions.reduce<string[]>((kept, { question, anchor }) => {
+    audit.total += 1;
+
+    const line =
+      index.get(timestampKey(anchor.timestamp) ?? Number.NaN) ?? findByQuote(anchor.quote, utterances);
+
+    if (!line || !question.trim()) {
+      audit.unmatched += 1;
+      audit.droppedItems += 1;
+      return kept;
+    }
+
+    audit.verified += 1;
+    kept.push(question.trim());
+    return kept;
+  }, []);
 }
 
 /**
