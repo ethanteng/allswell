@@ -211,7 +211,7 @@ export class SessionsService {
       data: {
         ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
         ...(dto.clientId !== undefined ? { clientId: dto.clientId } : {}),
-        ...(dto.sessionDate !== undefined ? { sessionDate: new Date(dto.sessionDate) } : {}),
+        ...(dto.sessionDate !== undefined ? { sessionDate: dto.sessionDate ? new Date(dto.sessionDate) : null } : {}),
       },
       include: SESSION_WITH_TURNS,
     });

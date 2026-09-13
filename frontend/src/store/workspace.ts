@@ -42,7 +42,7 @@ interface WorkspaceState {
   renameClient: (clientId: string, name: string) => Promise<void>;
   deleteClient: (clientId: string) => Promise<void>;
 
-  renameSession: (sessionId: string, title: string) => Promise<void>;
+  editSession: (sessionId: string, changes: { title: string; sessionDate: string | null }) => Promise<void>;
   moveSession: (sessionId: string, clientId: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
 
@@ -200,13 +200,13 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     }
   },
 
-  renameSession: async (sessionId, title) => {
+  editSession: async (sessionId, changes) => {
     try {
-      const updated = await api.updateSession(sessionId, { title });
+      const updated = await api.updateSession(sessionId, changes);
       if (get().selectedSessionId === sessionId) set({ session: updated });
       await get().loadClients();
     } catch (error) {
-      set({ error: messageFor(error, 'Could not rename that session') });
+      set({ error: messageFor(error, 'Could not update that session') });
     }
   },
 

@@ -92,9 +92,9 @@ export function FeedbackPanel({
         <p className="flex gap-2.5 rounded-xl border border-clay-100 bg-clay-50 p-4 text-sm leading-6 text-clay-700">
           <CircleAlert size={17} className="mt-0.5 shrink-0" aria-hidden />
           <span>
-            <strong className="font-semibold">Placeholder output.</strong> The model call isn&apos;t wired up yet, so
-            this feedback comes from pattern matching over the transcript. The citations are real lines from the
-            session; the clinical reasoning behind them is not.
+            <strong className="font-semibold">Placeholder output.</strong> This deployment has no Anthropic API
+            key configured, so this feedback comes from pattern matching over the transcript rather than from a
+            model. The citations are real lines from the session; the clinical reasoning behind them is not.
           </span>
         </p>
       )}

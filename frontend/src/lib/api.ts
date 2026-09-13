@@ -112,7 +112,7 @@ export const api = {
   askFollowUp: (id: string, question: string) =>
     request<SessionDetail>(`/sessions/${id}/turns`, { method: 'POST', body: JSON.stringify({ question }) }),
 
-  updateSession: (id: string, payload: { title?: string; clientId?: string; sessionDate?: string }) =>
+  updateSession: (id: string, payload: { title?: string; clientId?: string; sessionDate?: string | null }) =>
     request<SessionDetail>(`/sessions/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
   deleteSession: (id: string) => request<{ id: string; deleted: boolean }>(`/sessions/${id}`, { method: 'DELETE' }),
