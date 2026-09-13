@@ -81,6 +81,7 @@ Open **http://localhost:3001**, register with the email you put in
 ```bash
 npm run build          # production build, both apps
 npm run type-check     # tsc --noEmit, both apps
+npm test --prefix backend   # checks for citation verification and model guards
 npm run db:studio      # Prisma Studio against your local database
 ```
 
@@ -103,13 +104,21 @@ computed from the transcript by `computeStats` and merged in afterwards. Those
 are exactly calculable, and a plausible-looking wrong number sitting beside real
 clinical observations discredits the observations too.
 
-**Every citation is verified before it is stored.** `citations.ts` checks each
-cited timestamp against the transcript. A timestamp that doesn't exist is
-dropped; a point left with no evidence is dropped entirely, which is what the
-prompt tells the model to do anyway. For citations that do match, the quoted
-text and speaker are taken **from the transcript rather than from the model** —
-so quotes are verbatim by construction instead of by trust. The counts are
-logged, so drift shows up rather than passing silently.
+**Every citation is verified before it is stored.** `citations.ts` resolves each
+cited moment against the transcript — by timestamp first, falling back to
+matching the quoted text, so transcripts pasted without timestamps still work.
+A moment that resolves to no line is dropped; a point left with no evidence is
+dropped entirely, which is what the prompt tells the model to do anyway. For
+moments that do resolve, the quoted text and speaker are taken **from the
+transcript rather than from the model** — so quotes are verbatim by
+construction instead of by trust. The counts are logged, so drift shows up
+rather than passing silently.
+
+Follow-up answers are prose rather than structured fields, so they can't go
+through the same path. Instead the timestamps they cite are checked, and any
+that don't appear in the transcript are flagged in a note appended to the
+answer. Flagged rather than removed: deleting a reference from the middle of a
+clinical sentence can change what the sentence claims.
 
 This matters more here than in most applications: the citations are the part a
 clinician would trust most and check least.
@@ -313,8 +322,9 @@ concrete rather than hypothetical.
 
 1. **Move analysis off the request path.** It runs inline today; a queue plus the
    existing `ANALYZING` status is the fix, with the UI polling.
-2. **Automated tests.** The citation verifier and the model-generation guards are
-   pure functions carrying the most risk, and both are currently verified by hand.
+2. **Broaden the tests.** `npm test` in `backend/` covers citation verification
+   and the model-generation guards — the pure logic whose failures are silent.
+   The HTTP layer and the React components are still only exercised by hand.
 3. **Prompt iteration** against several of the ten transcripts, using the admin
    page and Re-run to compare versions on the same session.
 4. **Evaluation**, which the current design is set up for: the same transcript

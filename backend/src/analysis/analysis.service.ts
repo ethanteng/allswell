@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { callStructured, callText, hasApiKey, type CallOptions } from './claude-client';
-import { EMPTY_AUDIT, verifyCitations, type CitationAudit } from './citations';
+import { EMPTY_AUDIT, unverifiedProseTimestamps, verifyCitations, type CitationAudit } from './citations';
 import { DEFAULT_ANALYSIS_PROMPT, DEFAULT_FOLLOW_UP_PROMPT } from './default-prompts';
 import type { FeedbackStats, SessionFeedback } from './feedback.types';
 import { analyseTranscript, computeStats } from './heuristic-analyser';
@@ -165,11 +165,37 @@ export class AnalysisService {
     );
 
     return {
-      answer,
+      answer: this.flagUnverifiedCitations(answer, transcript),
       model: config.model,
       promptVersion: config.version,
       latencyMs: Date.now() - startedAt,
     };
+  }
+
+  /**
+   * Appends a caution when a follow-up cites a timestamp the transcript does
+   * not contain.
+   *
+   * The analysis path drops unverifiable citations outright, which it can do
+   * because each one is a discrete field. A follow-up is prose, and removing a
+   * reference from the middle of a sentence can change what the sentence
+   * claims — so this marks the answer rather than editing it, and leaves the
+   * clinician to judge.
+   */
+  private flagUnverifiedCitations(answer: string, transcript: string): string {
+    const unverified = unverifiedProseTimestamps(answer, transcript);
+    if (unverified.length === 0) return answer;
+
+    this.logger.warn(`Follow-up cited ${unverified.length} timestamp(s) absent from the transcript: ${unverified.join(', ')}`);
+
+    return [
+      answer,
+      '',
+      '---',
+      `_${unverified.length === 1 ? 'One timestamp' : `${unverified.length} timestamps`} cited above — ` +
+        `${unverified.map((t) => `\`${t}\``).join(', ')} — ${unverified.length === 1 ? 'does' : 'do'} not appear ` +
+        'in this transcript. Treat those references with caution._',
+    ].join('\n');
   }
 
   /** Shown only when no key is configured, and says so plainly. */

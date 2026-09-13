@@ -88,6 +88,32 @@ function indexByTimestamp(utterances: Utterance[]): Map<number, Utterance> {
 }
 
 /**
+ * Finds the line a quote came from by its text.
+ *
+ * Timestamps are the precise anchor, but not every transcript has them — a
+ * paste of plain `Therapist:` / `Client:` turns parses perfectly well and is
+ * accepted by the API. Matching on the quote keeps those transcripts working
+ * instead of silently discarding every point, and it also rescues a citation
+ * whose quote is right but whose timestamp is a line or two off.
+ */
+function findByQuote(quote: string, utterances: Utterance[]): Utterance | null {
+  const quoted = normalise(quote);
+  if (quoted.length < 12) return null; // too short to identify a line
+
+  const prefix = quoted.slice(0, 80);
+
+  for (const utterance of utterances) {
+    const actual = normalise(utterance.text);
+    if (!actual) continue;
+    if (actual.includes(prefix) || (quoted.length >= 20 && quoted.includes(actual))) {
+      return utterance;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Returns the feedback with unverifiable citations removed, and a count of what
  * was changed. Points left with no evidence are dropped: an uncited claim is
  * exactly what the prompt tells the model not to produce.
@@ -97,7 +123,8 @@ export function verifyCitations<T extends FeedbackItem>(
   transcript: string,
   audit: CitationAudit,
 ): T[] {
-  const index = indexByTimestamp(parseTranscript(transcript));
+  const utterances = parseTranscript(transcript);
+  const index = indexByTimestamp(utterances);
   const kept: T[] = [];
 
   for (const item of items) {
@@ -106,7 +133,11 @@ export function verifyCitations<T extends FeedbackItem>(
     for (const moment of item.moments) {
       audit.total += 1;
 
-      const line = index.get(timestampKey(moment.timestamp) ?? Number.NaN);
+      // Timestamp first — it is unambiguous. Quote text is the fallback, which
+      // is what an untimed transcript relies on entirely.
+      const line =
+        index.get(timestampKey(moment.timestamp) ?? Number.NaN) ?? findByQuote(moment.quote, utterances);
+
       if (!line) {
         audit.unmatched += 1;
         continue;
@@ -132,4 +163,39 @@ export function verifyCitations<T extends FeedbackItem>(
   }
 
   return kept;
+}
+
+/**
+ * Checks the timestamps a follow-up answer cites in its prose.
+ *
+ * Follow-ups are markdown, not structured output, so they cannot go through
+ * `verifyCitations` — but the follow-up prompt asks the model to cite
+ * timestamps, which means the same fabrication risk reaches the clinician by a
+ * different route. The analysis pane's guarantee would be worth much less if
+ * the conversation beside it had no guarantee at all.
+ *
+ * This reports rather than rewrites: silently deleting a reference from
+ * clinical prose can change what the surrounding sentence claims, which is a
+ * worse failure than flagging it.
+ */
+export function unverifiedProseTimestamps(answer: string, transcript: string): string[] {
+  const real = new Set<number>();
+  for (const utterance of parseTranscript(transcript)) {
+    const key = timestampKey(utterance.timestamp);
+    if (key !== null) real.add(key);
+  }
+
+  // Nothing to check against: an untimed transcript can't have cited timestamps.
+  if (real.size === 0) return [];
+
+  const cited = answer.match(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g) ?? [];
+  const unverified = new Set<string>();
+
+  for (const token of cited) {
+    const raw = token.slice(1, -1);
+    const key = timestampKey(raw);
+    if (key === null || !real.has(key)) unverified.add(token);
+  }
+
+  return [...unverified];
 }
