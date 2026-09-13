@@ -1,0 +1,36 @@
+# Render Blueprint for the Allswell API and its database.
+#
+# Deploy with: Render dashboard -> New -> Blueprint -> point at this repo.
+# The frontend is NOT here; it deploys to Vercel with the frontend/ directory
+# as its root.
+services:
+  - type: web
+    name: allswell-api
+    runtime: node
+    plan: starter
+    rootDir: backend
+    buildCommand: npm run build:render
+    # Migrations run on boot so a schema change ships with the deploy that needs
+    # it, rather than as a manual step someone has to remember.
+    startCommand: npm run start:render
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: allswell-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: ADMIN_EMAILS
+        sync: false # Set in the dashboard: emails that get admin on registration.
+      - key: CORS_ORIGINS
+        sync: false # Set in the dashboard: your Vercel URL, comma-separated.
+      - key: NODE_VERSION
+        value: 22
+
+databases:
+  - name: allswell-db
+    plan: basic-256mb
+    postgresMajorVersion: "16"

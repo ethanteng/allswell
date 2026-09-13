@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// A clinician using the tool. All clients and sessions are scoped to one.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  isAdmin      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  clients  Client[]
+  sessions Session[]
+
+  @@map("users")
+}
+
+/// A person the clinician sees. Sessions group under exactly one client.
+model Client {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Editable label. Seeded as "New client" so a session can be filed before
+  /// the clinician decides what to call the group.
+  name  String
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions Session[]
+
+  @@index([userId])
+  @@map("clients")
+}
+
+enum SessionStatus {
+  DRAFT
+  ANALYZING
+  COMPLETE
+  FAILED
+}
+
+/// One therapy session: the transcript plus every turn of feedback on it.
+model Session {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Moving a session between clients is a write to this column and nothing
+  /// else, which is why turns hang off the session rather than the client.
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  title      String
+  transcript String @db.Text
+  /// When the session happened, as distinct from when it was pasted in.
+  sessionDate DateTime?
+
+  status       SessionStatus @default(DRAFT)
+  /// Populated when status is FAILED so the UI can explain itself.
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  turns Turn[]
+
+  @@index([clientId])
+  @@index([userId])
+  @@map("sessions")
+}
+
+enum TurnKind {
+  /// The first pass over the transcript. Carries structured feedback.
+  ANALYSIS
+  /// A clinician question about the session. Carries markdown prose.
+  FOLLOW_UP
+}
+
+/// One exchange within a session. The ANALYSIS turn has no question; every
+/// FOLLOW_UP turn does. Both sit in one table so the response pane can render
+/// them as a single ordered thread.
+model Turn {
+  id        String  @id @default(cuid())
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  kind TurnKind
+
+  /// Null on the ANALYSIS turn.
+  question String? @db.Text
+  /// Markdown prose. Used by FOLLOW_UP turns.
+  answer   String? @db.Text
+  /// Structured feedback (strengths, growth areas, cited moments). Used by the
+  /// ANALYSIS turn. Shape lives in src/analysis/feedback.types.ts.
+  feedback Json?
+
+  /// What produced this turn, recorded per-turn so re-running after an admin
+  /// prompt change stays auditable.
+  model         String?
+  promptVersion Int?
+  /// Wall-clock generation time in ms, surfaced in the UI.
+  latencyMs     Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("turns")
+}
+
+/// Singleton row (id "default") holding the admin-editable LLM configuration.
+model PromptConfig {
+  id String @id @default("default")
+
+  /// Instructions for the first pass over a transcript.
+  analysisPrompt String @db.Text
+  /// Instructions for answering a clinician's follow-up question.
+  followUpPrompt String @db.Text
+
+  model       String
+  temperature Float  @default(1.0)
+  maxTokens   Int    @default(8000)
+
+  /// Bumped on every save so each turn records which prompt produced it.
+  version Int @default(1)
+
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+
+  @@map("prompt_config")
+}
