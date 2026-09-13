@@ -11,10 +11,12 @@ const NEW_CLIENT = '__new__';
 const MIN_TRANSCRIPT_LENGTH = 50;
 
 export function TranscriptComposer() {
-  const { clients, createSession, working, error } = useWorkspace();
+  const { clients, composeForClientId, composeNonce, createSession, working, error } = useWorkspace();
 
   const [transcript, setTranscript] = useState('');
-  const [clientId, setClientId] = useState<string>(NEW_CLIENT);
+  // Seeded from the store so a preselection made while a session was open is
+  // already correct on this component's first render.
+  const [clientId, setClientId] = useState<string>(composeForClientId ?? NEW_CLIENT);
   const [newClientName, setNewClientName] = useState('');
   const [sessionDate, setSessionDate] = useState('');
   const [loadingSample, setLoadingSample] = useState(false);
@@ -22,19 +24,21 @@ export function TranscriptComposer() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /**
-   * "New session" from a client's sidebar menu preselects that client. An event
-   * rather than a store field: it is a one-shot instruction to this component,
-   * not state anything else needs to read back.
+   * Reset when "New session" is picked while this composer is already on screen.
+   * Keyed on the nonce so repeating the same choice still resets, and reading
+   * composeForClientId without depending on it so a later store write cannot
+   * reset a draft the clinician is part-way through.
    */
-  useEffect(() => {
-    function onComposeForClient(event: Event) {
-      const { clientId: target } = (event as CustomEvent<{ clientId: string }>).detail;
-      setClientId(target);
-    }
+  const composeForClientIdRef = useRef(composeForClientId);
+  composeForClientIdRef.current = composeForClientId;
 
-    window.addEventListener('allswell:compose-for-client', onComposeForClient);
-    return () => window.removeEventListener('allswell:compose-for-client', onComposeForClient);
-  }, []);
+  useEffect(() => {
+    setClientId(composeForClientIdRef.current ?? NEW_CLIENT);
+    setTranscript('');
+    setNewClientName('');
+    setSessionDate('');
+    setLocalError(null);
+  }, [composeNonce]);
 
   // A client selected here can be deleted from the sidebar while the composer
   // is open; fall back rather than posting a clientId that no longer resolves.

@@ -9,6 +9,20 @@ interface WorkspaceState {
   /** Full detail for the open session, or null when composing a new one. */
   session: SessionDetail | null;
   selectedSessionId: string | null;
+  /**
+   * Client the composer should preselect, set by "New session" on a client row.
+   * Store state rather than an event: the composer only mounts once the session
+   * is cleared, so an event dispatched alongside that clear arrives before
+   * anything is listening.
+   */
+  composeForClientId: string | null;
+  /**
+   * Incremented on every startNewSession call. The composer resets on this
+   * rather than on composeForClientId, which does not change when the same
+   * choice is made twice running — two clicks of "New session", or the same
+   * client row twice — and so would leave the previous draft in place.
+   */
+  composeNonce: number;
 
   loadingClients: boolean;
   loadingSession: boolean;
@@ -18,7 +32,7 @@ interface WorkspaceState {
 
   loadClients: () => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
-  startNewSession: () => void;
+  startNewSession: (composeForClientId?: string) => void;
 
   createSession: (payload: { transcript: string; clientId?: string; newClientName?: string; sessionDate?: string }) => Promise<string | null>;
   reanalyze: () => Promise<void>;
@@ -45,6 +59,8 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   clients: [],
   session: null,
   selectedSessionId: null,
+  composeForClientId: null,
+  composeNonce: 0,
   loadingClients: false,
   loadingSession: false,
   working: false,
@@ -79,8 +95,15 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     }
   },
 
-  /** Clears the workspace back to the composer. */
-  startNewSession: () => set({ session: null, selectedSessionId: null, error: null }),
+  /** Clears the workspace back to the composer, optionally preselecting a client. */
+  startNewSession: (composeForClientId) =>
+    set((state) => ({
+      session: null,
+      selectedSessionId: null,
+      error: null,
+      composeForClientId: composeForClientId ?? null,
+      composeNonce: state.composeNonce + 1,
+    })),
 
   createSession: async (payload) => {
     set({ working: true, error: null });

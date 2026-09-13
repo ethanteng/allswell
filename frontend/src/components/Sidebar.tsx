@@ -187,9 +187,7 @@ export function Sidebar({ user, onSignOut, onClose }: { user: AuthUser | null; o
    * afterwards.
    */
   function newSessionFor(clientId: string) {
-    startNewSession();
-    useWorkspace.setState({ error: null });
-    window.dispatchEvent(new CustomEvent('allswell:compose-for-client', { detail: { clientId } }));
+    startNewSession(clientId);
     onClose?.();
   }
 
